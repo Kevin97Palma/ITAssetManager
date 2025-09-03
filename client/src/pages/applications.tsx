@@ -131,7 +131,8 @@ export default function Applications() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           title="Aplicaciones" 
-          subtitle="Gestión de software y aplicaciones" 
+          subtitle="Gestión de software y aplicaciones"
+          selectedCompanyId={selectedCompanyId}
         />
         
         <main className="flex-1 overflow-y-auto bg-background">
