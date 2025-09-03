@@ -68,6 +68,64 @@ export default function Dashboard() {
     enabled: !!selectedCompanyId,
   });
 
+  // Get assets for expiry alerts
+  const { data: assetsList = [] } = useQuery({
+    queryKey: ["/api/assets", selectedCompanyId],
+    enabled: !!selectedCompanyId,
+  });
+
+  // Calculate expiring services
+  const getExpiringServices = () => {
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
+    const alerts: any[] = [];
+    
+    assetsList.forEach((asset: any) => {
+      if (asset.type !== 'application') return;
+      
+      const services = [
+        { name: 'Dominio', date: asset.domainExpiry, app: asset.name },
+        { name: 'SSL', date: asset.sslExpiry, app: asset.name },
+        { name: 'Hosting', date: asset.hostingExpiry, app: asset.name },
+        { name: 'Servidor', date: asset.serverExpiry, app: asset.name }
+      ];
+      
+      services.forEach(service => {
+        if (!service.date) return;
+        
+        const expiryDate = new Date(service.date);
+        if (expiryDate < now) {
+          alerts.push({
+            type: 'expired',
+            service: service.name,
+            app: service.app,
+            date: expiryDate,
+            priority: 'high'
+          });
+        } else if (expiryDate <= thirtyDaysFromNow) {
+          const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          alerts.push({
+            type: 'expiring',
+            service: service.name,
+            app: service.app,
+            date: expiryDate,
+            daysLeft,
+            priority: daysLeft <= 7 ? 'high' : 'medium'
+          });
+        }
+      });
+    });
+    
+    return alerts.sort((a, b) => {
+      if (a.type === 'expired' && b.type !== 'expired') return -1;
+      if (a.type !== 'expired' && b.type === 'expired') return 1;
+      return a.date.getTime() - b.date.getTime();
+    });
+  };
+
+  const expiringServices = getExpiringServices();
+
   useEffect(() => {
     if (dashboardError && isUnauthorizedError(dashboardError as Error)) {
       toast({
@@ -102,7 +160,8 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           title="Dashboard de Costos TI" 
-          subtitle="Resumen ejecutivo de activos y gastos" 
+          subtitle="Resumen ejecutivo de activos y gastos"
+          selectedCompanyId={selectedCompanyId}
         />
         
         <main className="flex-1 overflow-y-auto bg-background">
@@ -186,6 +245,63 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Service Expiry Alerts */}
+            {expiringServices.length > 0 && (
+              <Card className="border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-warning">
+                    <AlertTriangle className="w-5 h-5 mr-2" />
+                    Alertas de Servicios
+                  </CardTitle>
+                  <CardDescription>
+                    Servicios que expiran en los próximos 30 días
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {expiringServices.slice(0, 5).map((alert, index) => (
+                      <div 
+                        key={index}
+                        className={`p-3 rounded-lg border ${
+                          alert.type === 'expired' 
+                            ? 'border-destructive bg-destructive/10' 
+                            : alert.priority === 'high'
+                            ? 'border-warning bg-warning/10'
+                            : 'border-yellow-500 bg-yellow-500/10'
+                        }`}
+                        data-testid={`alert-${alert.type}-${index}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-sm">
+                              {alert.service} - {alert.app}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {alert.type === 'expired' 
+                                ? `Expiró el ${alert.date.toLocaleDateString('es-ES')}`
+                                : `Expira en ${alert.daysLeft} día${alert.daysLeft > 1 ? 's' : ''}`
+                              }
+                            </p>
+                          </div>
+                          <Badge 
+                            variant={alert.type === 'expired' ? 'destructive' : 'secondary'}
+                            className={alert.type === 'expired' ? '' : 'bg-warning text-warning-foreground'}
+                          >
+                            {alert.type === 'expired' ? 'EXPIRADO' : 'PRÓXIMO A VENCER'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                    {expiringServices.length > 5 && (
+                      <p className="text-xs text-muted-foreground text-center pt-2">
+                        Y {expiringServices.length - 5} alerta{expiringServices.length - 5 > 1 ? 's' : ''} más...
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

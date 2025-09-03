@@ -122,7 +122,8 @@ export default function PhysicalAssets() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           title="Activos Físicos" 
-          subtitle="Gestión de equipos y hardware" 
+          subtitle="Gestión de equipos y hardware"
+          selectedCompanyId={selectedCompanyId}
         />
         
         <main className="flex-1 overflow-y-auto bg-background">
