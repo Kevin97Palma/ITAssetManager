@@ -56,8 +56,17 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
       location: "",
       assignedTo: "",
       notes: "",
+      applicationType: "saas",
+      url: "",
+      version: "",
+      domainCost: "0",
+      sslCost: "0",
+      hostingCost: "0",
+      serverCost: "0",
     },
   });
+
+  const selectedType = form.watch("type");
 
   const createAssetMutation = useMutation({
     mutationFn: async (data: z.infer<typeof formSchema>) => {
@@ -100,7 +109,7 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Agregar Nuevo Activo</DialogTitle>
         </DialogHeader>
@@ -167,13 +176,167 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
               )}
             />
 
+            {/* Application-specific fields */}
+            {selectedType === "application" && (
+              <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
+                <h4 className="font-medium text-sm">Configuración de Aplicación</h4>
+                
+                <FormField
+                  control={form.control}
+                  name="applicationType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de Aplicación</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-application-type">
+                            <SelectValue placeholder="Seleccionar tipo..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="saas">SaaS (Software como Servicio)</SelectItem>
+                          <SelectItem value="custom_development">Desarrollo Propio</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="url"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>URL de la Aplicación</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="https://..." 
+                            {...field} 
+                            data-testid="input-application-url"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="version"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Versión</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="v1.0.0" 
+                            {...field} 
+                            data-testid="input-application-version"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <h5 className="font-medium text-sm text-muted-foreground">Costos de Infraestructura (Mensual)</h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="domainCost"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Dominio</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00" 
+                              {...field} 
+                              data-testid="input-domain-cost"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="sslCost"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>SSL</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00" 
+                              {...field} 
+                              data-testid="input-ssl-cost"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="hostingCost"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Hosting</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00" 
+                              {...field} 
+                              data-testid="input-hosting-cost"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="serverCost"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Servidores</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00" 
+                              {...field} 
+                              data-testid="input-server-cost"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="monthlyCost"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Costo Mensual</FormLabel>
+                    <FormLabel>
+                      {selectedType === "application" ? "Costo Mensual (App)" : "Costo Mensual"}
+                    </FormLabel>
                     <FormControl>
                       <Input 
                         type="number"
@@ -193,7 +356,9 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                 name="annualCost"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Costo Anual</FormLabel>
+                    <FormLabel>
+                      {selectedType === "application" ? "Costo Anual (App)" : "Costo Anual"}
+                    </FormLabel>
                     <FormControl>
                       <Input 
                         type="number"

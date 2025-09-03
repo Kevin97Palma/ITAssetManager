@@ -168,18 +168,79 @@ export default function Applications() {
                       
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
+                          <span className="text-muted-foreground">Tipo:</span>
+                          <span className="text-foreground font-medium">
+                            {app.applicationType === 'saas' ? 'SaaS' : 'Desarrollo Propio'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
                           <span className="text-muted-foreground">Versión:</span>
-                          <span className="text-foreground font-medium">{app.model || "N/A"}</span>
+                          <span className="text-foreground font-medium">{app.version || app.model || "N/A"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Desarrollador:</span>
                           <span className="text-foreground font-medium">{app.manufacturer || "N/A"}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Costo Mensual:</span>
-                          <span className="text-foreground font-medium">
-                            ${Number(app.monthlyCost || 0).toLocaleString()}
-                          </span>
+                        {app.url && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">URL:</span>
+                            <a href={app.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs truncate max-w-32">
+                              {app.url}
+                            </a>
+                          </div>
+                        )}
+                        <div className="border-t pt-2 mt-3">
+                          <div className="text-xs text-muted-foreground mb-2">Costos Mensuales:</div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Aplicación:</span>
+                              <span className="text-foreground font-medium">
+                                ${Number(app.monthlyCost || 0).toLocaleString()}
+                              </span>
+                            </div>
+                            {(Number(app.domainCost) > 0 || Number(app.sslCost) > 0 || Number(app.hostingCost) > 0 || Number(app.serverCost) > 0) && (
+                              <>
+                                {Number(app.domainCost) > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Dominio:</span>
+                                    <span className="text-foreground font-medium">
+                                      ${Number(app.domainCost).toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                                {Number(app.sslCost) > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">SSL:</span>
+                                    <span className="text-foreground font-medium">
+                                      ${Number(app.sslCost).toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                                {Number(app.hostingCost) > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Hosting:</span>
+                                    <span className="text-foreground font-medium">
+                                      ${Number(app.hostingCost).toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                                {Number(app.serverCost) > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Servidor:</span>
+                                    <span className="text-foreground font-medium">
+                                      ${Number(app.serverCost).toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            <div className="flex justify-between col-span-2 pt-1 border-t border-muted">
+                              <span className="text-muted-foreground font-medium">Total:</span>
+                              <span className="text-foreground font-bold">
+                                ${(Number(app.monthlyCost || 0) + Number(app.domainCost || 0) + Number(app.sslCost || 0) + Number(app.hostingCost || 0) + Number(app.serverCost || 0)).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
 
