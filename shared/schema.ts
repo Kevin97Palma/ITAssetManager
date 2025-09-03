@@ -47,6 +47,25 @@ export const assetTypeEnum = pgEnum("asset_type", [
   "contract"
 ]);
 
+export const applicationTypeEnum = pgEnum("application_type", [
+  "saas",
+  "custom_development"
+]);
+
+export const maintenanceTypeEnum = pgEnum("maintenance_type", [
+  "preventive",
+  "corrective",
+  "emergency",
+  "upgrade"
+]);
+
+export const maintenanceStatusEnum = pgEnum("maintenance_status", [
+  "scheduled",
+  "in_progress",
+  "completed",
+  "cancelled"
+]);
+
 export const contractStatusEnum = pgEnum("contract_status", [
   "active",
   "expired",
@@ -102,6 +121,15 @@ export const assets = pgTable("assets", {
   location: varchar("location"),
   assignedTo: varchar("assigned_to"),
   notes: text("notes"),
+  // Application-specific fields
+  applicationType: applicationTypeEnum("application_type"),
+  url: varchar("url"), // For SaaS applications
+  version: varchar("version"),
+  // Infrastructure costs
+  domainCost: decimal("domain_cost", { precision: 10, scale: 2 }).default("0"),
+  sslCost: decimal("ssl_cost", { precision: 10, scale: 2 }).default("0"),
+  hostingCost: decimal("hosting_cost", { precision: 10, scale: 2 }).default("0"),
+  serverCost: decimal("server_cost", { precision: 10, scale: 2 }).default("0"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -152,15 +180,21 @@ export const maintenanceRecords = pgTable("maintenance_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   assetId: varchar("asset_id").notNull().references(() => assets.id, { onDelete: "cascade" }),
   companyId: varchar("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
-  maintenanceType: varchar("maintenance_type").notNull(), // preventive, corrective, emergency
+  maintenanceType: maintenanceTypeEnum("maintenance_type").notNull(),
+  title: varchar("title").notNull(),
   description: text("description").notNull(),
   vendor: varchar("vendor"),
   cost: decimal("cost", { precision: 10, scale: 2 }).default("0"),
   scheduledDate: timestamp("scheduled_date"),
   completedDate: timestamp("completed_date"),
   nextMaintenanceDate: timestamp("next_maintenance_date"),
-  status: varchar("status").notNull().default("scheduled"), // scheduled, in_progress, completed, cancelled
+  status: maintenanceStatusEnum("status").notNull().default("scheduled"),
+  priority: varchar("priority").default("medium"), // low, medium, high, critical
+  technician: varchar("technician"),
+  partsReplaced: text("parts_replaced"), // JSON or text list of replaced parts
+  timeSpent: integer("time_spent"), // minutes
   notes: text("notes"),
+  attachments: text("attachments").array(), // file paths or URLs
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

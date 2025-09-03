@@ -260,6 +260,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/maintenance/asset/:assetId/:companyId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { assetId, companyId } = req.params;
+      const records = await storage.getMaintenanceRecordsByAsset(assetId, companyId);
+      res.json(records);
+    } catch (error) {
+      console.error("Error fetching asset maintenance records:", error);
+      res.status(500).json({ message: "Failed to fetch asset maintenance records" });
+    }
+  });
+
   app.post('/api/maintenance', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

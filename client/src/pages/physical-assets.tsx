@@ -5,13 +5,20 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import AddAssetModal from "@/components/modals/add-asset-modal";
-import { Plus, Search, Filter, Edit2, Trash2, Eye } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Trash2, Eye, Wrench, Calendar } from "lucide-react";
 
 export default function PhysicalAssets() {
   const { toast } = useToast();
@@ -19,6 +26,13 @@ export default function PhysicalAssets() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [showAddAssetModal, setShowAddAssetModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedAssetForMaintenance, setSelectedAssetForMaintenance] = useState<string | null>(null);
+
+  // Get maintenance records for selected asset
+  const { data: maintenanceRecords = [], isLoading: isMaintenanceLoading } = useQuery({
+    queryKey: ["/api/maintenance/asset", selectedAssetForMaintenance, selectedCompanyId],
+    enabled: !!selectedAssetForMaintenance && !!selectedCompanyId,
+  });
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -178,6 +192,26 @@ export default function PhysicalAssets() {
                           <span className="text-muted-foreground">Ubicación:</span>
                           <span className="text-foreground font-medium">{asset.location || "N/A"}</span>
                         </div>
+                        {asset.assignedTo && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Asignado a:</span>
+                            <span className="text-foreground font-medium">{asset.assignedTo}</span>
+                          </div>
+                        )}
+                        {asset.warrantyExpiry && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Garantía:</span>
+                            <span className={`font-medium ${
+                              new Date(asset.warrantyExpiry) < new Date() 
+                                ? 'text-destructive' 
+                                : new Date(asset.warrantyExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                                  ? 'text-chart-4' 
+                                  : 'text-foreground'
+                            }`}>
+                              {new Date(asset.warrantyExpiry).toLocaleDateString()}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Costo Mensual:</span>
                           <span className="text-foreground font-medium">
@@ -186,14 +220,35 @@ export default function PhysicalAssets() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="sm" data-testid={`button-view-${asset.id}`}>
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" data-testid={`button-edit-${asset.id}`}>
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
+                      <div className="mt-4 pt-4 border-t border-border space-y-3">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground flex items-center">
+                            <Wrench className="w-3 h-3 mr-1" />
+                            Último Mantenimiento
+                          </span>
+                          <span className="text-foreground font-medium">
+                            {/* Esta información vendrá del historial de mantenimientos */}
+                            Hace 2 meses
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex space-x-1">
+                            <Button variant="ghost" size="sm" data-testid={`button-view-${asset.id}`}>
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" data-testid={`button-edit-${asset.id}`}>
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => setSelectedAssetForMaintenance(asset.id)}
+                              data-testid={`button-maintenance-${asset.id}`}
+                            >
+                              <Calendar className="w-4 h-4" />
+                            </Button>
+                          </div>
                           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" data-testid={`button-delete-${asset.id}`}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -236,6 +291,146 @@ export default function PhysicalAssets() {
         onOpenChange={setShowAddAssetModal}
         companyId={selectedCompanyId}
       />
+
+      {/* Maintenance History Modal */}
+      <Dialog 
+        open={!!selectedAssetForMaintenance} 
+        onOpenChange={() => setSelectedAssetForMaintenance(null)}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Historial de Mantenimientos</DialogTitle>
+          </DialogHeader>
+          
+          <ScrollArea className="h-[70vh] pr-4">
+            <div className="space-y-4">
+              {isMaintenanceLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i} className="border-border">
+                    <CardContent className="p-4">
+                      <Skeleton className="h-4 w-1/3 mb-2" />
+                      <Skeleton className="h-3 w-full mb-2" />
+                      <Skeleton className="h-3 w-2/3" />
+                    </CardContent>
+                  </Card>
+                ))
+              ) : maintenanceRecords.length > 0 ? (
+                maintenanceRecords.map((record: any) => (
+                  <Card key={record.id} className="border-border">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">{record.title || record.description}</CardTitle>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant={record.maintenanceType === 'emergency' ? 'destructive' : 
+                                        record.maintenanceType === 'corrective' ? 'secondary' : 'outline'}>
+                            {record.maintenanceType === 'preventive' ? 'Preventivo' :
+                             record.maintenanceType === 'corrective' ? 'Correctivo' :
+                             record.maintenanceType === 'emergency' ? 'Emergencia' :
+                             record.maintenanceType === 'upgrade' ? 'Actualización' :
+                             record.maintenanceType}
+                          </Badge>
+                          <Badge variant={record.status === 'completed' ? 'default' : 
+                                        record.status === 'in_progress' ? 'secondary' : 
+                                        record.status === 'cancelled' ? 'destructive' : 'outline'}>
+                            {record.status === 'completed' ? 'Completado' :
+                             record.status === 'in_progress' ? 'En Progreso' :
+                             record.status === 'scheduled' ? 'Programado' :
+                             record.status === 'cancelled' ? 'Cancelado' :
+                             record.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground mb-2">Descripción:</p>
+                          <p className="text-foreground">{record.description}</p>
+                        </div>
+                        <div className="space-y-2">
+                          {record.vendor && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Proveedor:</span>
+                              <span className="text-foreground font-medium">{record.vendor}</span>
+                            </div>
+                          )}
+                          {record.technician && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Técnico:</span>
+                              <span className="text-foreground font-medium">{record.technician}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Fecha Programada:</span>
+                            <span className="text-foreground font-medium">
+                              {record.scheduledDate ? new Date(record.scheduledDate).toLocaleDateString() : 'N/A'}
+                            </span>
+                          </div>
+                          {record.completedDate && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Fecha Completada:</span>
+                              <span className="text-foreground font-medium">
+                                {new Date(record.completedDate).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                          {record.cost && Number(record.cost) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Costo:</span>
+                              <span className="text-foreground font-medium">
+                                ${Number(record.cost).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          {record.timeSpent && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Tiempo:</span>
+                              <span className="text-foreground font-medium">
+                                {Math.floor(Number(record.timeSpent) / 60)}h {Number(record.timeSpent) % 60}m
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {record.partsReplaced && (
+                        <div className="mt-4 pt-4 border-t border-border">
+                          <p className="text-muted-foreground text-xs mb-2">Partes Reemplazadas:</p>
+                          <p className="text-foreground text-sm">{record.partsReplaced}</p>
+                        </div>
+                      )}
+                      
+                      {record.notes && (
+                        <div className="mt-4 pt-4 border-t border-border">
+                          <p className="text-muted-foreground text-xs mb-2">Notas:</p>
+                          <p className="text-foreground text-sm">{record.notes}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Wrench className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                    No hay registros de mantenimiento
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Este equipo no tiene historial de mantenimientos registrados.
+                  </p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+          
+          <div className="flex justify-between pt-4 border-t">
+            <Button variant="outline">Agregar Mantenimiento</Button>
+            <Button onClick={() => setSelectedAssetForMaintenance(null)}>Cerrar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
