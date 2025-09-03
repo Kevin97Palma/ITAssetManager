@@ -63,6 +63,10 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
       sslCost: "0",
       hostingCost: "0",
       serverCost: "0",
+      domainExpiry: undefined,
+      sslExpiry: undefined,
+      hostingExpiry: undefined,
+      serverExpiry: undefined,
     },
   });
 
@@ -241,15 +245,20 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                   />
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <h5 className="font-medium text-sm text-muted-foreground">Costos de Infraestructura (Mensual)</h5>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="text-muted-foreground font-medium">Servicio</div>
+                    <div className="text-muted-foreground font-medium">Costo Mensual</div>
+                    <div className="text-muted-foreground font-medium">Fecha de Caducidad</div>
+                    
+                    {/* Dominio */}
+                    <div className="flex items-center">Dominio</div>
                     <FormField
                       control={form.control}
                       name="domainCost"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Dominio</FormLabel>
                           <FormControl>
                             <Input 
                               type="number"
@@ -257,6 +266,26 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                               placeholder="0.00" 
                               {...field} 
                               data-testid="input-domain-cost"
+                              className="h-8"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="domainExpiry"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input 
+                              type="date"
+                              {...field}
+                              value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                              onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                              data-testid="input-domain-expiry"
+                              className="h-8"
                             />
                           </FormControl>
                           <FormMessage />
@@ -264,12 +293,13 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                       )}
                     />
 
+                    {/* SSL */}
+                    <div className="flex items-center">SSL</div>
                     <FormField
                       control={form.control}
                       name="sslCost"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>SSL</FormLabel>
                           <FormControl>
                             <Input 
                               type="number"
@@ -277,6 +307,26 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                               placeholder="0.00" 
                               {...field} 
                               data-testid="input-ssl-cost"
+                              className="h-8"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="sslExpiry"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input 
+                              type="date"
+                              {...field}
+                              value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                              onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                              data-testid="input-ssl-expiry"
+                              className="h-8"
                             />
                           </FormControl>
                           <FormMessage />
@@ -284,12 +334,13 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                       )}
                     />
 
+                    {/* Hosting */}
+                    <div className="flex items-center">Hosting</div>
                     <FormField
                       control={form.control}
                       name="hostingCost"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Hosting</FormLabel>
                           <FormControl>
                             <Input 
                               type="number"
@@ -297,6 +348,26 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                               placeholder="0.00" 
                               {...field} 
                               data-testid="input-hosting-cost"
+                              className="h-8"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="hostingExpiry"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input 
+                              type="date"
+                              {...field}
+                              value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                              onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                              data-testid="input-hosting-expiry"
+                              className="h-8"
                             />
                           </FormControl>
                           <FormMessage />
@@ -304,12 +375,13 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                       )}
                     />
 
+                    {/* Servidores */}
+                    <div className="flex items-center">Servidores</div>
                     <FormField
                       control={form.control}
                       name="serverCost"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Servidores</FormLabel>
                           <FormControl>
                             <Input 
                               type="number"
@@ -317,6 +389,26 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                               placeholder="0.00" 
                               {...field} 
                               data-testid="input-server-cost"
+                              className="h-8"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="serverExpiry"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input 
+                              type="date"
+                              {...field}
+                              value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                              onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                              data-testid="input-server-expiry"
+                              className="h-8"
                             />
                           </FormControl>
                           <FormMessage />

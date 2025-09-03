@@ -130,6 +130,11 @@ export const assets = pgTable("assets", {
   sslCost: decimal("ssl_cost", { precision: 10, scale: 2 }).default("0"),
   hostingCost: decimal("hosting_cost", { precision: 10, scale: 2 }).default("0"),
   serverCost: decimal("server_cost", { precision: 10, scale: 2 }).default("0"),
+  // Infrastructure expiry dates
+  domainExpiry: timestamp("domain_expiry"),
+  sslExpiry: timestamp("ssl_expiry"),
+  hostingExpiry: timestamp("hosting_expiry"),
+  serverExpiry: timestamp("server_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddAssetModal from "@/components/modals/add-asset-modal";
-import { Plus, Search, Filter, Edit2, Trash2, Eye, ExternalLink } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Trash2, Eye, ExternalLink, AlertTriangle, Calendar } from "lucide-react";
 
 export default function Applications() {
   const { toast } = useToast();
@@ -95,6 +95,32 @@ export default function Applications() {
     }
   };
 
+  const getExpiryWarning = (app: any) => {
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
+    const expiries = [
+      { name: 'Dominio', date: app.domainExpiry },
+      { name: 'SSL', date: app.sslExpiry },
+      { name: 'Hosting', date: app.hostingExpiry },
+      { name: 'Servidor', date: app.serverExpiry }
+    ].filter(item => item.date);
+    
+    const expired = expiries.filter(item => new Date(item.date) < now);
+    const expiringSoon = expiries.filter(item => {
+      const date = new Date(item.date);
+      return date >= now && date <= thirtyDaysFromNow;
+    });
+    
+    if (expired.length > 0) {
+      return { type: 'expired', count: expired.length, items: expired };
+    }
+    if (expiringSoon.length > 0) {
+      return { type: 'expiring', count: expiringSoon.length, items: expiringSoon };
+    }
+    return null;
+  };
+
   return (
     <div className="flex h-screen">
       <Sidebar 
@@ -152,18 +178,35 @@ export default function Applications() {
                 ))
               ) : filteredApplications.length > 0 ? (
                 filteredApplications.map((app: any) => (
-                  <Card key={app.id} className="border-border hover:shadow-md transition-shadow" data-testid={`card-application-${app.id}`}>
+                  <Card key={app.id} className={`border-border hover:shadow-md transition-shadow ${
+                    getExpiryWarning(app)?.type === 'expired' ? 'border-destructive' :
+                    getExpiryWarning(app)?.type === 'expiring' ? 'border-chart-4' : ''
+                  }`} data-testid={`card-application-${app.id}`}>
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
-                          <h3 className="font-semibold text-foreground mb-1" data-testid="text-application-name">
-                            {app.name}
-                          </h3>
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h3 className="font-semibold text-foreground" data-testid="text-application-name">
+                              {app.name}
+                            </h3>
+                            {getExpiryWarning(app) && (
+                              <AlertTriangle className={`w-4 h-4 ${
+                                getExpiryWarning(app)?.type === 'expired' ? 'text-destructive' : 'text-chart-4'
+                              }`} title={`${getExpiryWarning(app)?.count} servicio(s) ${getExpiryWarning(app)?.type === 'expired' ? 'expirado(s)' : 'próximo(s) a expirar'}`} />
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">
                             {app.description}
                           </p>
                         </div>
-                        {getStatusBadge(app.status)}
+                        <div className="flex flex-col items-end space-y-1">
+                          {getStatusBadge(app.status)}
+                          {getExpiryWarning(app) && (
+                            <Badge variant={getExpiryWarning(app)?.type === 'expired' ? 'destructive' : 'outline'} className="text-xs">
+                              {getExpiryWarning(app)?.count} {getExpiryWarning(app)?.type === 'expired' ? 'Vencido' : 'Por vencer'}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="space-y-2 text-sm">
@@ -201,35 +244,99 @@ export default function Applications() {
                             {(Number(app.domainCost) > 0 || Number(app.sslCost) > 0 || Number(app.hostingCost) > 0 || Number(app.serverCost) > 0) && (
                               <>
                                 {Number(app.domainCost) > 0 && (
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Dominio:</span>
-                                    <span className="text-foreground font-medium">
-                                      ${Number(app.domainCost).toLocaleString()}
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground flex items-center">
+                                      Dominio
+                                      {app.domainExpiry && new Date(app.domainExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
+                                        <AlertTriangle className="w-3 h-3 ml-1 text-chart-4" />
+                                      )}
                                     </span>
+                                    <div className="text-right">
+                                      <div className="text-foreground font-medium">
+                                        ${Number(app.domainCost).toLocaleString()}
+                                      </div>
+                                      {app.domainExpiry && (
+                                        <div className={`text-xs ${
+                                          new Date(app.domainExpiry) < new Date() ? 'text-destructive' :
+                                          new Date(app.domainExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? 'text-chart-4' :
+                                          'text-muted-foreground'
+                                        }`}>
+                                          {new Date(app.domainExpiry).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                                 {Number(app.sslCost) > 0 && (
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">SSL:</span>
-                                    <span className="text-foreground font-medium">
-                                      ${Number(app.sslCost).toLocaleString()}
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground flex items-center">
+                                      SSL
+                                      {app.sslExpiry && new Date(app.sslExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
+                                        <AlertTriangle className="w-3 h-3 ml-1 text-chart-4" />
+                                      )}
                                     </span>
+                                    <div className="text-right">
+                                      <div className="text-foreground font-medium">
+                                        ${Number(app.sslCost).toLocaleString()}
+                                      </div>
+                                      {app.sslExpiry && (
+                                        <div className={`text-xs ${
+                                          new Date(app.sslExpiry) < new Date() ? 'text-destructive' :
+                                          new Date(app.sslExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? 'text-chart-4' :
+                                          'text-muted-foreground'
+                                        }`}>
+                                          {new Date(app.sslExpiry).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                                 {Number(app.hostingCost) > 0 && (
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Hosting:</span>
-                                    <span className="text-foreground font-medium">
-                                      ${Number(app.hostingCost).toLocaleString()}
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground flex items-center">
+                                      Hosting
+                                      {app.hostingExpiry && new Date(app.hostingExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
+                                        <AlertTriangle className="w-3 h-3 ml-1 text-chart-4" />
+                                      )}
                                     </span>
+                                    <div className="text-right">
+                                      <div className="text-foreground font-medium">
+                                        ${Number(app.hostingCost).toLocaleString()}
+                                      </div>
+                                      {app.hostingExpiry && (
+                                        <div className={`text-xs ${
+                                          new Date(app.hostingExpiry) < new Date() ? 'text-destructive' :
+                                          new Date(app.hostingExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? 'text-chart-4' :
+                                          'text-muted-foreground'
+                                        }`}>
+                                          {new Date(app.hostingExpiry).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                                 {Number(app.serverCost) > 0 && (
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Servidor:</span>
-                                    <span className="text-foreground font-medium">
-                                      ${Number(app.serverCost).toLocaleString()}
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground flex items-center">
+                                      Servidor
+                                      {app.serverExpiry && new Date(app.serverExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
+                                        <AlertTriangle className="w-3 h-3 ml-1 text-chart-4" />
+                                      )}
                                     </span>
+                                    <div className="text-right">
+                                      <div className="text-foreground font-medium">
+                                        ${Number(app.serverCost).toLocaleString()}
+                                      </div>
+                                      {app.serverExpiry && (
+                                        <div className={`text-xs ${
+                                          new Date(app.serverExpiry) < new Date() ? 'text-destructive' :
+                                          new Date(app.serverExpiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? 'text-chart-4' :
+                                          'text-muted-foreground'
+                                        }`}>
+                                          {new Date(app.serverExpiry).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                               </>
