@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Form,
@@ -58,6 +59,7 @@ import { z } from "zod";
 
 const companyFormSchema = insertCompanySchema.extend({
   id: z.string().optional(),
+  plan: z.enum(["pyme", "professional"]).default("professional"),
 });
 
 export default function Settings() {
@@ -115,6 +117,7 @@ export default function Settings() {
     defaultValues: {
       name: "",
       description: "",
+      plan: "professional" as const,
     },
   });
 
@@ -125,6 +128,7 @@ export default function Settings() {
         id: selectedCompany.company.id,
         name: selectedCompany.company.name,
         description: selectedCompany.company.description || "",
+        plan: selectedCompany.company.plan || "professional",
       });
     }
   }, [selectedCompany, companyForm]);
@@ -371,6 +375,38 @@ export default function Settings() {
                                           data-testid="input-new-company-description"
                                         />
                                       </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <FormField
+                                  control={companyForm.control}
+                                  name="plan"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Plan</FormLabel>
+                                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                          <SelectTrigger data-testid="select-company-plan">
+                                            <SelectValue placeholder="Seleccionar plan..." />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                          <SelectItem value="professional">
+                                            <div className="flex flex-col">
+                                              <span className="font-medium">Profesional</span>
+                                              <span className="text-xs text-muted-foreground">Para personas naturales (1 usuario, 100 activos)</span>
+                                            </div>
+                                          </SelectItem>
+                                          <SelectItem value="pyme">
+                                            <div className="flex flex-col">
+                                              <span className="font-medium">PyME</span>
+                                              <span className="text-xs text-muted-foreground">Para pequeñas empresas (10+ usuarios, 500+ activos)</span>
+                                            </div>
+                                          </SelectItem>
+                                        </SelectContent>
+                                      </Select>
                                       <FormMessage />
                                     </FormItem>
                                   )}

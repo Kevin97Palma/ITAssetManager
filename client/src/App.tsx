@@ -14,6 +14,7 @@ import Licenses from "@/pages/licenses";
 import Maintenance from "@/pages/maintenance";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
+import AdminPanel from "@/pages/admin";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -32,6 +33,7 @@ function Router() {
           <Route path="/maintenance" component={Maintenance} />
           <Route path="/reports" component={Reports} />
           <Route path="/settings" component={Settings} />
+          <Route path="/admin" component={AdminPanel} />
         </>
       )}
       <Route component={NotFound} />

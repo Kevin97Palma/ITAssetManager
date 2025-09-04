@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Server,
   BarChart3,
@@ -15,30 +16,44 @@ import {
   PieChart,
   Settings,
   ChevronDown,
+  Crown,
 } from "lucide-react";
 
 interface SidebarProps {
   selectedCompanyId: string;
   onCompanyChange: (companyId: string) => void;
+  showAdminPanel?: boolean;
 }
 
-const navigationItems = [
-  { path: "/", icon: BarChart3, label: "Dashboard" },
-  { path: "/assets", icon: Monitor, label: "Activos Físicos" },
-  { path: "/applications", icon: Laptop, label: "Aplicaciones" },
-  { path: "/contracts", icon: FileText, label: "Contratos" },
-  { path: "/licenses", icon: Key, label: "Licencias" },
-  { path: "/maintenance", icon: Wrench, label: "Mantenimiento" },
-  { path: "/reports", icon: PieChart, label: "Reportes" },
-  { path: "/settings", icon: Settings, label: "Configuración" },
-];
+const getNavigationItems = (isAdmin: boolean, showAdminPanel: boolean) => {
+  const items = [
+    { path: "/", icon: BarChart3, label: "Dashboard" },
+    { path: "/assets", icon: Monitor, label: "Activos Físicos" },
+    { path: "/applications", icon: Laptop, label: "Aplicaciones" },
+    { path: "/contracts", icon: FileText, label: "Contratos" },
+    { path: "/licenses", icon: Key, label: "Licencias" },
+    { path: "/maintenance", icon: Wrench, label: "Mantenimiento" },
+    { path: "/reports", icon: PieChart, label: "Reportes" },
+    { path: "/settings", icon: Settings, label: "Configuración" },
+  ];
 
-export default function Sidebar({ selectedCompanyId, onCompanyChange }: SidebarProps) {
+  if (isAdmin && !showAdminPanel) {
+    items.push({ path: "/admin", icon: Crown, label: "Administración" });
+  }
+
+  return items;
+};
+
+export default function Sidebar({ selectedCompanyId, onCompanyChange, showAdminPanel }: SidebarProps) {
   const [location] = useLocation();
+  const { user } = useAuth();
   
   const { data: userCompanies = [] } = useQuery({
     queryKey: ["/api/companies"],
   });
+
+  const isAdmin = user?.role === 'super_admin';
+  const navigationItems = getNavigationItems(isAdmin, showAdminPanel || false);
 
   const selectedCompany = userCompanies.find((uc: any) => uc.company.id === selectedCompanyId);
 
@@ -52,21 +67,31 @@ export default function Sidebar({ selectedCompanyId, onCompanyChange }: SidebarP
           <h1 className="text-lg font-semibold text-foreground">TechAssets Pro</h1>
         </div>
         
-        {/* Company Selector */}
-        <Select value={selectedCompanyId} onValueChange={onCompanyChange}>
-          <SelectTrigger className="w-full" data-testid="select-company">
-            <SelectValue placeholder="Seleccionar empresa">
-              {selectedCompany?.company.name || "Seleccionar empresa"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {userCompanies.map((uc: any) => (
-              <SelectItem key={uc.company.id} value={uc.company.id} data-testid={`option-company-${uc.company.id}`}>
-                {uc.company.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Company Selector - Hide in admin panel */}
+        {!showAdminPanel && (
+          <Select value={selectedCompanyId} onValueChange={onCompanyChange}>
+            <SelectTrigger className="w-full" data-testid="select-company">
+              <SelectValue placeholder="Seleccionar empresa">
+                {selectedCompany?.company.name || "Seleccionar empresa"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {userCompanies.map((uc: any) => (
+                <SelectItem key={uc.company.id} value={uc.company.id} data-testid={`option-company-${uc.company.id}`}>
+                  {uc.company.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        
+        {/* Admin Panel Indicator */}
+        {showAdminPanel && (
+          <div className="flex items-center space-x-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+            <Crown className="w-4 h-4 text-yellow-600" />
+            <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Panel de Admin</span>
+          </div>
+        )}
       </div>
       
       <nav className="p-4 space-y-2">

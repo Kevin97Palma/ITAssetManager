@@ -355,6 +355,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin routes (Super Admin only)
+  app.get('/api/admin/companies', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'super_admin') {
+        return res.status(403).json({ message: "Access denied. Super admin required." });
+      }
+      
+      const companies = await storage.getAllCompanies();
+      res.json(companies);
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+      res.status(500).json({ message: "Failed to fetch companies" });
+    }
+  });
+
+  app.put('/api/admin/companies/:companyId/plan', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'super_admin') {
+        return res.status(403).json({ message: "Access denied. Super admin required." });
+      }
+      
+      const { companyId } = req.params;
+      const { plan, maxUsers, maxAssets } = req.body;
+      
+      if (!['pyme', 'professional'].includes(plan)) {
+        return res.status(400).json({ message: "Invalid plan type" });
+      }
+      
+      const updatedCompany = await storage.updateCompanyPlan(companyId, plan, maxUsers, maxAssets);
+      res.json(updatedCompany);
+    } catch (error) {
+      console.error("Error updating company plan:", error);
+      res.status(500).json({ message: "Failed to update company plan" });
+    }
+  });
+
+  app.put('/api/admin/companies/:companyId/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'super_admin') {
+        return res.status(403).json({ message: "Access denied. Super admin required." });
+      }
+      
+      const { companyId } = req.params;
+      const { isActive } = req.body;
+      
+      const updatedCompany = await storage.toggleCompanyStatus(companyId, isActive);
+      res.json(updatedCompany);
+    } catch (error) {
+      console.error("Error updating company status:", error);
+      res.status(500).json({ message: "Failed to update company status" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

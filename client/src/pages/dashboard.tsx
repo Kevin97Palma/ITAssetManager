@@ -8,8 +8,10 @@ import Header from "@/components/layout/header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import CostPieChart from "@/components/charts/cost-pie-chart";
+import { getPlanDisplayName, getPlanLimits, getUsagePercentage } from "@/lib/planUtils";
 import TrendLineChart from "@/components/charts/trend-line-chart";
 import AddAssetModal from "@/components/modals/add-asset-modal";
 import { 
@@ -22,7 +24,8 @@ import {
   CalendarPlus,
   TrendingUp,
   AlertTriangle,
-  Download
+  Download,
+  Crown
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -51,10 +54,12 @@ export default function Dashboard() {
     enabled: isAuthenticated,
   });
 
+  const selectedCompany = userCompanies.find((uc: any) => uc.company.id === selectedCompanyId);
+
   // Set default company when companies are loaded
   useEffect(() => {
-    if (userCompanies.length > 0 && !selectedCompanyId) {
-      setSelectedCompanyId(userCompanies[0].company.id);
+    if ((userCompanies as any[]).length > 0 && !selectedCompanyId) {
+      setSelectedCompanyId((userCompanies as any[])[0].company.id);
     }
   }, [userCompanies, selectedCompanyId]);
 
@@ -81,7 +86,7 @@ export default function Dashboard() {
     
     const alerts: any[] = [];
     
-    assetsList.forEach((asset: any) => {
+    (assetsList as any[]).forEach((asset: any) => {
       if (asset.type !== 'application') return;
       
       const services = [
@@ -147,8 +152,8 @@ export default function Dashboard() {
     );
   }
 
-  const costs = dashboardData?.costs || {};
-  const assets = dashboardData?.assets || {};
+  const costs = (dashboardData as any)?.costs || {};
+  const assets = (dashboardData as any)?.assets || {};
 
   return (
     <div className="flex h-screen">
@@ -245,6 +250,69 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Plan Usage Card */}
+            {selectedCompany && (
+              <Card className="border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Crown className="w-5 h-5 mr-2 text-yellow-500" />
+                    Plan {getPlanDisplayName(selectedCompany.company.plan)}
+                  </CardTitle>
+                  <CardDescription>
+                    Uso actual vs límites del plan
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Assets Usage */}
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Activos Físicos</span>
+                        <span>{assets.physicalAssets || 0} / {getPlanLimits(selectedCompany.company.plan).maxAssets}</span>
+                      </div>
+                      <Progress 
+                        value={getUsagePercentage(selectedCompany.company.plan, "assets", assets.physicalAssets || 0)} 
+                        className="h-2"
+                      />
+                    </div>
+                    
+                    {/* Applications Usage */}
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Aplicaciones</span>
+                        <span>{assets.applications || 0} / {getPlanLimits(selectedCompany.company.plan).maxApplications}</span>
+                      </div>
+                      <Progress 
+                        value={getUsagePercentage(selectedCompany.company.plan, "applications", assets.applications || 0)} 
+                        className="h-2"
+                      />
+                    </div>
+                    
+                    {/* Contracts Usage */}
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Contratos</span>
+                        <span>{(dashboardData as any)?.contracts || 0} / {getPlanLimits(selectedCompany.company.plan).maxContracts}</span>
+                      </div>
+                      <Progress 
+                        value={getUsagePercentage(selectedCompany.company.plan, "contracts", (dashboardData as any)?.contracts || 0)} 
+                        className="h-2"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Upgrade notice for Professional plan */}
+                  {selectedCompany.company.plan === 'professional' && (
+                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        💡 Actualiza a PyME para más límites y funciones avanzadas como técnicos asignados
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Service Expiry Alerts */}
             {expiringServices.length > 0 && (
@@ -403,8 +471,8 @@ export default function Dashboard() {
                           </div>
                         </div>
                       ))
-                    ) : recentActivity.length > 0 ? (
-                      recentActivity.map((activity: any, index: number) => (
+                    ) : (recentActivity as any[]).length > 0 ? (
+                      (recentActivity as any[]).map((activity: any, index: number) => (
                         <div key={activity.id} className="flex items-start space-x-3" data-testid={`activity-${index}`}>
                           <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center flex-shrink-0">
                             <Plus className="w-3 h-3 text-white" />

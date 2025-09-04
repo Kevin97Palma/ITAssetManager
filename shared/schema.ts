@@ -73,6 +73,11 @@ export const contractStatusEnum = pgEnum("contract_status", [
   "cancelled"
 ]);
 
+export const companyPlanEnum = pgEnum("company_plan", [
+  "pyme",
+  "professional"
+]);
+
 // Users table (required for Replit Auth)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -90,6 +95,10 @@ export const companies = pgTable("companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name").notNull(),
   description: text("description"),
+  plan: companyPlanEnum("plan").notNull().default("pyme"),
+  maxUsers: integer("max_users").default(10), // For pyme plan
+  maxAssets: integer("max_assets").default(500), // For pyme plan  
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -33,7 +33,12 @@ export interface IStorage {
   // Company operations
   getUserCompanies(userId: string): Promise<(UserCompany & { company: Company })[]>;
   createCompany(company: InsertCompany): Promise<Company>;
-  addUserToCompany(userId: string, companyId: string, role: "super_admin" | "technical_admin" | "manager_owner"): Promise<UserCompany>;
+  addUserToCompany(userId: string, companyId: string, role: "super_admin" | "technical_admin" | "manager_owner" | "technician"): Promise<UserCompany>;
+  
+  // Admin operations
+  getAllCompanies(): Promise<(Company & { userCount: number, assetCount: number })[]>;
+  updateCompanyPlan(companyId: string, plan: "pyme" | "professional", maxUsers?: number, maxAssets?: number): Promise<Company>;
+  toggleCompanyStatus(companyId: string, isActive: boolean): Promise<Company>;
   
   // Asset operations
   getAssetsByCompany(companyId: string): Promise<Asset[]>;
@@ -484,6 +489,65 @@ export class DatabaseStorage implements IStorage {
       );
     
     return result[0]?.count || 0;
+  }
+
+  // Admin operations
+  async getAllCompanies(): Promise<(Company & { userCount: number, assetCount: number })[]> {
+    const companiesWithStats = await db
+      .select({
+        id: companies.id,
+        name: companies.name,
+        description: companies.description,
+        plan: companies.plan,
+        maxUsers: companies.maxUsers,
+        maxAssets: companies.maxAssets,
+        isActive: companies.isActive,
+        createdAt: companies.createdAt,
+        updatedAt: companies.updatedAt,
+        userCount: count(userCompanies.id),
+        assetCount: count(assets.id),
+      })
+      .from(companies)
+      .leftJoin(userCompanies, eq(companies.id, userCompanies.companyId))
+      .leftJoin(assets, eq(companies.id, assets.companyId))
+      .groupBy(companies.id)
+      .orderBy(companies.createdAt);
+
+    return companiesWithStats.map(company => ({
+      ...company,
+      userCount: Number(company.userCount || 0),
+      assetCount: Number(company.assetCount || 0),
+    }));
+  }
+
+  async updateCompanyPlan(companyId: string, plan: "pyme" | "professional", maxUsers?: number, maxAssets?: number): Promise<Company> {
+    const updateData: any = { plan };
+    
+    if (plan === "pyme") {
+      updateData.maxUsers = maxUsers || 10;
+      updateData.maxAssets = maxAssets || 500;
+    } else if (plan === "professional") {
+      updateData.maxUsers = 1;
+      updateData.maxAssets = 100;
+    }
+    
+    const [updatedCompany] = await db
+      .update(companies)
+      .set(updateData)
+      .where(eq(companies.id, companyId))
+      .returning();
+    
+    return updatedCompany;
+  }
+
+  async toggleCompanyStatus(companyId: string, isActive: boolean): Promise<Company> {
+    const [updatedCompany] = await db
+      .update(companies)
+      .set({ isActive })
+      .where(eq(companies.id, companyId))
+      .returning();
+    
+    return updatedCompany;
   }
 
   async createExpiryNotifications(companyId: string): Promise<void> {
