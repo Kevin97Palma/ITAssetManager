@@ -108,7 +108,7 @@ export default function AdminPanel() {
   // Update company plan mutation
   const updatePlanMutation = useMutation({
     mutationFn: async ({ companyId, plan, maxUsers, maxAssets }: any) => {
-      return apiRequest(`/api/admin/companies/${companyId}/plan`, "PUT", {
+      return apiRequest("PUT", `/api/admin/companies/${companyId}/plan`, {
         plan,
         maxUsers,
         maxAssets
@@ -145,7 +145,7 @@ export default function AdminPanel() {
   // Toggle company status mutation
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ companyId, isActive }: any) => {
-      return apiRequest(`/api/admin/companies/${companyId}/status`, "PUT", {
+      return apiRequest("PUT", `/api/admin/companies/${companyId}/status`, {
         isActive
       });
     },
@@ -179,7 +179,7 @@ export default function AdminPanel() {
   // Support access mutation
   const enterSupportMutation = useMutation({
     mutationFn: async (companyId: string) => {
-      return apiRequest(`/api/admin/support-access/${companyId}`, "POST", {});
+      return apiRequest("POST", `/api/admin/support-access/${companyId}`, {});
     },
     onSuccess: (data) => {
       toast({
@@ -213,7 +213,7 @@ export default function AdminPanel() {
   // Exit support mode mutation
   const exitSupportMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/admin/exit-support", "POST", {});
+      return apiRequest("POST", "/api/admin/exit-support", {});
     },
     onSuccess: () => {
       toast({
