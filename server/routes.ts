@@ -411,6 +411,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Super Admin - Support Mode Routes
+  app.post('/api/admin/support-access/:companyId', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'super_admin') {
+        return res.status(403).json({ message: "Access denied. Super admin required." });
+      }
+      
+      const { companyId } = req.params;
+      const company = await storage.getCompanyById(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Set support mode session flag
+      req.session.supportMode = {
+        companyId: companyId,
+        adminId: user.id,
+        startTime: new Date().toISOString()
+      };
+      
+      // Log this access for auditing
+      await storage.logActivity({
+        companyId: companyId,
+        userId: user.id,
+        action: "accessed",
+        entityType: "company",
+        entityId: companyId,
+        entityName: `Support access to ${company.name}`,
+      });
+      
+      res.json({ 
+        message: "Support access granted", 
+        company: company,
+        supportMode: true 
+      });
+    } catch (error) {
+      console.error("Error granting support access:", error);
+      res.status(500).json({ message: "Failed to grant support access" });
+    }
+  });
+
+  app.post('/api/admin/exit-support', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'super_admin') {
+        return res.status(403).json({ message: "Access denied. Super admin required." });
+      }
+      
+      if (req.session.supportMode) {
+        const supportInfo = req.session.supportMode;
+        
+        // Log exit from support mode
+        await storage.logActivity({
+          companyId: supportInfo.companyId,
+          userId: user.id,
+          action: "exited",
+          entityType: "company",
+          entityId: supportInfo.companyId,
+          entityName: "Exited support mode",
+        });
+        
+        delete req.session.supportMode;
+      }
+      
+      res.json({ message: "Exited support mode", supportMode: false });
+    } catch (error) {
+      console.error("Error exiting support mode:", error);
+      res.status(500).json({ message: "Failed to exit support mode" });
+    }
+  });
+
+  app.get('/api/admin/support-status', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'super_admin') {
+        return res.status(403).json({ message: "Access denied. Super admin required." });
+      }
+      
+      const supportMode = req.session.supportMode || null;
+      let currentCompany = null;
+      
+      if (supportMode) {
+        currentCompany = await storage.getCompanyById(supportMode.companyId);
+      }
+      
+      res.json({ 
+        supportMode: !!supportMode,
+        company: currentCompany,
+        startTime: supportMode?.startTime || null
+      });
+    } catch (error) {
+      console.error("Error checking support status:", error);
+      res.status(500).json({ message: "Failed to check support status" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

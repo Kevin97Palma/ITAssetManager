@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bell, LogOut, AlertTriangle, Calendar, ExternalLink } from "lucide-react";
+import { Bell, LogOut, AlertTriangle, Calendar, ExternalLink, Wrench } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -31,6 +31,14 @@ export default function Header({ title, subtitle, selectedCompanyId }: HeaderPro
   });
 
   const unreadCount = unreadData?.count || 0;
+
+  // Check if user is super admin in support mode
+  const { data: supportStatus } = useQuery({
+    queryKey: ["/api/admin/support-status"],
+    enabled: user?.role === 'super_admin',
+    retry: false,
+    refetchInterval: 10000, // Check every 10 seconds
+  });
 
   // Format notification date
   const formatNotificationDate = (dateString: string) => {
@@ -74,7 +82,15 @@ export default function Header({ title, subtitle, selectedCompanyId }: HeaderPro
     <header className="bg-card border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground" data-testid="text-page-title">{title}</h2>
+          <div className="flex items-center space-x-3">
+            <h2 className="text-2xl font-bold text-foreground" data-testid="text-page-title">{title}</h2>
+            {supportStatus?.supportMode && (
+              <Badge variant="destructive" className="text-white">
+                <Wrench className="w-3 h-3 mr-1" />
+                Modo Soporte: {supportStatus.company?.name}
+              </Badge>
+            )}
+          </div>
           {subtitle && (
             <p className="text-sm text-muted-foreground" data-testid="text-page-subtitle">{subtitle}</p>
           )}

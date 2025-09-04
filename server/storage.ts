@@ -34,6 +34,7 @@ export interface IStorage {
   getUserCompanies(userId: string): Promise<(UserCompany & { company: Company })[]>;
   createCompany(company: InsertCompany): Promise<Company>;
   addUserToCompany(userId: string, companyId: string, role: "super_admin" | "technical_admin" | "manager_owner" | "technician"): Promise<UserCompany>;
+  getCompanyById(companyId: string): Promise<Company | undefined>;
   
   // Admin operations
   getAllCompanies(): Promise<(Company & { userCount: number, assetCount: number })[]>;
@@ -145,6 +146,11 @@ export class DatabaseStorage implements IStorage {
       .values({ userId, companyId, role })
       .returning();
     return userCompany;
+  }
+
+  async getCompanyById(companyId: string): Promise<Company | undefined> {
+    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
+    return company;
   }
 
   // Asset operations

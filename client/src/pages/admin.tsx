@@ -19,7 +19,9 @@ import {
   TrendingUp,
   AlertCircle,
   CheckCircle,
-  Crown
+  Crown,
+  LogIn,
+  LogOut
 } from "lucide-react";
 import {
   Dialog,
@@ -34,6 +36,7 @@ export default function AdminPanel() {
   const queryClient = useQueryClient();
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [editingCompany, setEditingCompany] = useState<any>(null);
+  const [supportMode, setSupportMode] = useState<any>(null);
 
   // Redirect if not authenticated or not super admin
   useEffect(() => {
@@ -56,6 +59,21 @@ export default function AdminPanel() {
     enabled: isAuthenticated && user?.role === 'super_admin',
     retry: false,
   });
+
+  // Check support mode status
+  const { data: supportStatus } = useQuery({
+    queryKey: ["/api/admin/support-status"],
+    enabled: isAuthenticated && user?.role === 'super_admin',
+    retry: false,
+    refetchInterval: 10000, // Check every 10 seconds
+  });
+
+  // Update support mode state
+  useEffect(() => {
+    if (supportStatus) {
+      setSupportMode(supportStatus.supportMode ? supportStatus : null);
+    }
+  }, [supportStatus]);
 
   // Update company plan mutation
   const updatePlanMutation = useMutation({
@@ -128,6 +146,62 @@ export default function AdminPanel() {
     },
   });
 
+  // Support access mutation
+  const enterSupportMutation = useMutation({
+    mutationFn: async (companyId: string) => {
+      return apiRequest(`/api/admin/support-access/${companyId}`, "POST", {});
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Acceso de soporte activado",
+        description: `Ahora puedes administrar la empresa: ${data.company.name}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support-status"] });
+      // Redirect to main dashboard with support mode
+      window.location.href = "/";
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({
+          title: "No autorizado",
+          description: "Redirigiendo al inicio de sesión...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "No se pudo activar el modo soporte",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Exit support mode mutation
+  const exitSupportMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/admin/exit-support", "POST", {});
+    },
+    onSuccess: () => {
+      toast({
+        title: "Modo soporte desactivado",
+        description: "Has salido del modo soporte",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support-status"] });
+      setSupportMode(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "No se pudo salir del modo soporte",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading || !isAuthenticated || user?.role !== 'super_admin') {
     return <div className="flex items-center justify-center min-h-screen">
       <div className="text-center">
@@ -187,9 +261,28 @@ export default function AdminPanel() {
                 <Crown className="w-6 h-6 text-yellow-500" />
                 <h1 className="text-2xl font-bold">Super Administrador</h1>
               </div>
-              <Badge variant="outline" className="text-yellow-600 border-yellow-300">
-                Acceso Completo
-              </Badge>
+              <div className="flex items-center space-x-3">
+                {supportMode && (
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="destructive" className="text-white">
+                      🔧 Modo Soporte: {supportMode.company?.name}
+                    </Badge>
+                    <Button 
+                      variant="outline"
+                      size="sm" 
+                      onClick={() => exitSupportMutation.mutate()}
+                      disabled={exitSupportMutation.isPending}
+                      data-testid="button-exit-support"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Salir
+                    </Button>
+                  </div>
+                )}
+                <Badge variant="outline" className="text-yellow-600 border-yellow-300">
+                  Acceso Completo
+                </Badge>
+              </div>
             </div>
 
             {/* Statistics Cards */}
@@ -324,6 +417,19 @@ export default function AdminPanel() {
                             ) : (
                               <AlertCircle className="w-5 h-5 text-red-500" />
                             )}
+
+                            {/* Support Access Button */}
+                            <Button
+                              variant={supportMode?.company?.id === company.id ? "secondary" : "outline"}
+                              size="sm"
+                              onClick={() => enterSupportMutation.mutate(company.id)}
+                              disabled={enterSupportMutation.isPending || !company.isActive}
+                              className="ml-2"
+                              data-testid={`button-support-${company.id}`}
+                            >
+                              <LogIn className="w-4 h-4 mr-2" />
+                              {supportMode?.company?.id === company.id ? 'Modo Activo' : 'Ingresar'}
+                            </Button>
                           </div>
                         </div>
                       ))}
