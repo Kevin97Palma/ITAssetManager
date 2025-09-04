@@ -179,7 +179,8 @@ export default function AdminPanel() {
   // Support access mutation
   const enterSupportMutation = useMutation({
     mutationFn: async (companyId: string) => {
-      return apiRequest("POST", `/api/admin/support-access/${companyId}`, {});
+      const response = await apiRequest("POST", `/api/admin/support-access/${companyId}`, {});
+      return await response.json();
     },
     onSuccess: (data) => {
       toast({
