@@ -15,13 +15,22 @@ export default function Landing() {
               </div>
               <h1 className="text-2xl font-bold text-foreground">TechAssets Pro</h1>
             </div>
-            <Button 
-              onClick={() => window.location.href = '/api/login'}
-              className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
-              data-testid="button-login"
-            >
-              Iniciar Sesión
-            </Button>
+            <div className="flex space-x-3">
+              <Button 
+                onClick={() => window.location.href = '/register'}
+                variant="default"
+                data-testid="button-register"
+              >
+                Registrarse
+              </Button>
+              <Button 
+                onClick={() => window.location.href = '/api/login'}
+                variant="outline"
+                data-testid="button-login"
+              >
+                Iniciar Sesión
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -35,14 +44,25 @@ export default function Landing() {
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             Controla todos tus activos de TI, optimiza costos y mejora la eficiencia de tu empresa con nuestra plataforma especializada para PyMEs.
           </p>
-          <Button 
-            size="lg"
-            onClick={() => window.location.href = '/api/login'}
-            className="bg-secondary text-secondary-foreground hover:bg-secondary/90 px-8 py-3"
-            data-testid="button-get-started"
-          >
-            Comenzar Ahora
-          </Button>
+          <div className="flex justify-center space-x-4">
+            <Button 
+              size="lg"
+              onClick={() => window.location.href = '/register'}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-3"
+              data-testid="button-get-started"
+            >
+              Comenzar Gratis
+            </Button>
+            <Button 
+              size="lg"
+              variant="outline"
+              onClick={() => window.location.href = '/api/login'}
+              className="px-8 py-3"
+              data-testid="button-login-hero"
+            >
+              Iniciar Sesión
+            </Button>
+          </div>
         </div>
       </section>
 

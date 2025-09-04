@@ -34,6 +34,7 @@ import {
   insertMaintenanceRecordSchema,
   insertCompanySchema,
   insertNotificationSchema,
+  companyRegistrationSchema,
 } from "@shared/schema";
 
 /**
@@ -48,6 +49,28 @@ import {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configurar middleware de autenticación Replit OIDC
   await setupAuth(app);
+
+  // Registration route (public - no authentication required)
+  app.post('/api/register', async (req: any, res) => {
+    try {
+      const registrationData = companyRegistrationSchema.parse(req.body);
+      const result = await storage.registerCompany(registrationData);
+      res.json({
+        message: "Empresa registrada exitosamente",
+        company: result.company,
+        user: result.user,
+      });
+    } catch (error: any) {
+      console.error("Error registering company:", error);
+      if (error.code === '23505') { // Unique constraint violation
+        res.status(400).json({ 
+          message: "Ya existe una empresa con este RUC/Cédula o email" 
+        });
+      } else {
+        res.status(500).json({ message: "Error al registrar empresa" });
+      }
+    }
+  });
 
   // =============================================================================
   // RUTAS DE AUTENTICACIÓN

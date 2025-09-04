@@ -49,6 +49,7 @@ import {
   type InsertMaintenanceRecord,
   type ActivityLog,
   type UserCompany,
+  type CompanyRegistration,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sum, count } from "drizzle-orm";
@@ -81,6 +82,7 @@ export interface IStorage {
   createCompany(company: InsertCompany): Promise<Company>;
   addUserToCompany(userId: string, companyId: string, role: "super_admin" | "technical_admin" | "manager_owner" | "technician"): Promise<UserCompany>;
   getCompanyById(companyId: string): Promise<Company | undefined>;
+  registerCompany(companyData: CompanyRegistration): Promise<{ company: Company; user: User }>;
   
   // Admin operations
   getAllCompanies(): Promise<(Company & { userCount: number, assetCount: number })[]>;
@@ -247,6 +249,55 @@ export class DatabaseStorage implements IStorage {
       .values({ userId, companyId, role })
       .returning();
     return userCompany;
+  }
+
+  /**
+   * Registra una nueva empresa con su usuario propietario.
+   * 
+   * FUNCIONALIDAD:
+   * - Crea el usuario propietario de la empresa
+   * - Crea la empresa con los datos de registro
+   * - Establece la relación usuario-empresa con rol manager_owner
+   * - Maneja transacción para consistencia de datos
+   */
+  async registerCompany(companyData: CompanyRegistration): Promise<{ company: Company; user: User }> {
+    // First create or update the user
+    const userData = {
+      id: crypto.randomUUID(), // Generate new ID
+      email: companyData.email,
+      firstName: companyData.firstName,
+      lastName: companyData.lastName,
+      role: "manager_owner" as const,
+    };
+    
+    const user = await this.upsertUser(userData);
+    
+    // Then create the company
+    const [company] = await db
+      .insert(companies)
+      .values({
+        name: companyData.name,
+        plan: companyData.plan,
+        maxUsers: companyData.plan === "pyme" ? 10 : 50,
+        maxAssets: companyData.plan === "pyme" ? 500 : 2000,
+        ruc: companyData.plan === "pyme" ? companyData.ruc : undefined,
+        cedula: companyData.plan === "professional" ? companyData.cedula : undefined,
+        address: companyData.address,
+        phone: companyData.phone,
+        email: companyData.email,
+      })
+      .returning();
+      
+    // Create user-company relationship
+    await db
+      .insert(userCompanies)
+      .values({
+        userId: user.id,
+        companyId: company.id,
+        role: "manager_owner",
+      });
+      
+    return { company, user };
   }
 
   async getCompanyById(companyId: string): Promise<Company | undefined> {

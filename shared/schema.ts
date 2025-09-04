@@ -99,6 +99,12 @@ export const companies = pgTable("companies", {
   maxUsers: integer("max_users").default(10), // For pyme plan
   maxAssets: integer("max_assets").default(500), // For pyme plan  
   isActive: boolean("is_active").default(true),
+  // Registration fields
+  ruc: varchar("ruc").unique(), // For PyME companies
+  cedula: varchar("cedula").unique(), // For Professional companies
+  address: text("address"), // Dirección
+  phone: varchar("phone"), // Celular
+  email: varchar("email"), // Correo
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -338,6 +344,29 @@ export const insertMaintenanceRecordSchema = createInsertSchema(maintenanceRecor
   updatedAt: true,
 });
 
+// Registration schema for new companies
+export const companyRegistrationSchema = z.object({
+  name: z.string().min(1, "Nombre es requerido"),
+  plan: z.enum(["pyme", "professional"]),
+  ruc: z.string().optional(),
+  cedula: z.string().optional(), 
+  address: z.string().min(1, "Dirección es requerida"),
+  phone: z.string().min(1, "Celular es requerido"),
+  email: z.string().email("Email inválido"),
+  // User info
+  firstName: z.string().min(1, "Nombre es requerido"),
+  lastName: z.string().min(1, "Apellido es requerido"),
+}).refine((data) => {
+  if (data.plan === "pyme") {
+    return data.ruc && data.ruc.length > 0;
+  } else {
+    return data.cedula && data.cedula.length > 0;
+  }
+}, {
+  message: "RUC es requerido para empresas PyME, Cédula es requerida para profesionales",
+  path: data => data.plan === "pyme" ? ["ruc"] : ["cedula"]
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -351,5 +380,6 @@ export type License = typeof licenses.$inferSelect;
 export type InsertLicense = z.infer<typeof insertLicenseSchema>;
 export type MaintenanceRecord = typeof maintenanceRecords.$inferSelect;
 export type InsertMaintenanceRecord = z.infer<typeof insertMaintenanceRecordSchema>;
+export type CompanyRegistration = z.infer<typeof companyRegistrationSchema>;
 export type ActivityLog = typeof activityLog.$inferSelect;
 export type UserCompany = typeof userCompanies.$inferSelect;
