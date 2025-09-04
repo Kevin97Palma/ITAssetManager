@@ -251,24 +251,14 @@ export default function Register() {
                 </div>
 
                 {/* Buttons */}
-                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 pt-6">
+                <div className="flex justify-center pt-6">
                   <Button
                     type="submit"
-                    className="flex-1"
+                    className="w-full max-w-sm"
                     disabled={registerMutation.isPending}
                     data-testid="button-register"
                   >
                     {registerMutation.isPending ? "Registrando..." : "Registrar empresa"}
-                  </Button>
-                  
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => window.location.href = "/api/login"}
-                    data-testid="button-login"
-                  >
-                    Iniciar sesión con Google
                   </Button>
                 </div>
 
