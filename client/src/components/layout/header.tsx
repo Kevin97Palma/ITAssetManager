@@ -1,3 +1,38 @@
+/**
+ * COMPONENTE HEADER PRINCIPAL
+ * 
+ * Header global de la aplicación que se muestra en todas las páginas.
+ * Integra navegación, notificaciones, perfil de usuario y modo soporte.
+ * 
+ * FUNCIONALIDADES:
+ * - Título dinámico según la página actual
+ * - Sistema de notificaciones en tiempo real
+ * - Dropdown de perfil de usuario con logout
+ * - Indicador visual de modo soporte para super admins
+ * - Badge de notificaciones no leídas
+ * - Avatar personalizado con fallback a iniciales
+ * 
+ * NOTIFICACIONES:
+ * - Obtiene notificaciones de la empresa seleccionada
+ * - Muestra contador de no leídas con badge rojo
+ * - Formateo inteligente de fechas (relativo vs. absoluto)  
+ * - Marca como leídas al hacer click
+ * - Scroll area para manejar múltiples notificaciones
+ * 
+ * MODO SOPORTE:
+ * - Detecta automáticamente si el super admin está en modo soporte
+ * - Muestra banner naranja distintivo
+ * - Información de la empresa que se está soportando
+ * - Botón para salir del modo soporte
+ * 
+ * RESPONSIVE:
+ * - Adaptado para desktop y mobile
+ * - Iconos claros y reconocibles
+ * - Colores consistentes con el tema de la app
+ * 
+ * USADO EN: Todas las páginas principales de la aplicación
+ */
+
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";

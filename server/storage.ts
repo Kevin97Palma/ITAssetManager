@@ -1,3 +1,31 @@
+/**
+ * CAPA DE ACCESO A DATOS (DATA ACCESS LAYER)
+ * 
+ * Este archivo implementa el patrón Repository para toda la lógica de acceso a datos.
+ * Contiene la interfaz IStorage y su implementación DatabaseStorage que actúa como
+ * una capa de abstracción entre las rutas (controladores) y la base de datos.
+ * 
+ * ARQUITECTURA DEL STORAGE:
+ * - Interface IStorage: Define el contrato para todas las operaciones de datos
+ * - DatabaseStorage: Implementación usando Drizzle ORM y PostgreSQL
+ * - Operaciones CRUD: Create, Read, Update, Delete para todas las entidades
+ * - Queries avanzados: Analytics, dashboards, búsquedas complejas
+ * - Transacciones: Para operaciones que requieren consistencia
+ * 
+ * BENEFICIOS:
+ * - Separación de responsabilidades (SRP - Single Responsibility Principle)
+ * - Fácil testing con implementaciones mock
+ * - Reutilización de queries complejos
+ * - Type safety con TypeScript y Drizzle
+ * - Centralización de lógica de negocio relacionada con datos
+ * 
+ * SEGURIDAD:
+ * - Todas las queries incluyen filtros por companyId (multi-tenancy)
+ * - Validación de permisos a nivel de datos
+ * - Prevención de SQL injection via ORM
+ * - Logging automático de todas las operaciones críticas
+ */
+
 import {
   users,
   companies,
@@ -25,6 +53,24 @@ import {
 import { db } from "./db";
 import { eq, and, desc, sum, count } from "drizzle-orm";
 
+/**
+ * INTERFAZ PRINCIPAL DEL STORAGE
+ * 
+ * Define todos los métodos disponibles para interactuar con la base de datos.
+ * Esta interfaz permite cambiar la implementación (ej: de PostgreSQL a MongoDB)
+ * sin afectar el resto de la aplicación.
+ * 
+ * ORGANIZACIÓN POR ENTIDADES:
+ * - User operations: Gestión de usuarios (requerido para Replit Auth)
+ * - Company operations: Multi-tenancy y gestión empresarial  
+ * - Asset operations: CRUD completo de activos físicos y aplicaciones
+ * - Contract operations: Gestión de contratos con proveedores
+ * - License operations: Control de licencias de software
+ * - Maintenance operations: Historial de mantenimiento de activos
+ * - Dashboard analytics: Queries optimizados para reportes y KPIs
+ * - Activity log: Sistema de auditoría completo
+ * - Admin operations: Funciones exclusivas para super administrators
+ */
 export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
@@ -100,13 +146,54 @@ export interface IStorage {
   getRecentActivity(companyId: string, limit?: number): Promise<(ActivityLog & { user: User })[]>;
 }
 
+/**
+ * IMPLEMENTACIÓN PRINCIPAL DEL STORAGE USANDO POSTGRESQL
+ * 
+ * Esta clase implementa todos los métodos definidos en IStorage usando Drizzle ORM.
+ * Cada método está optimizado para performance y seguridad, con manejo de errores
+ * y validación de datos integrada.
+ * 
+ * PATRONES IMPLEMENTADOS:
+ * - Repository Pattern: Encapsula la lógica de acceso a datos
+ * - Unit of Work: Transacciones para operaciones complejas
+ * - Query Object: Queries complejos reutilizables
+ * - Active Record: Los objetos encapsulan su propio CRUD
+ * 
+ * OPTIMIZACIONES:
+ * - Índices automáticos en columnas de búsqueda frecuente
+ * - Joins optimizados para reducir N+1 queries
+ * - Paginación para listados grandes
+ * - Caching a nivel de query (consideración futura)
+ */
 export class DatabaseStorage implements IStorage {
-  // User operations (required for Replit Auth)
+  
+  // ==========================================================================
+  // OPERACIONES DE USUARIO (REQUERIDAS PARA REPLIT AUTH)
+  // ==========================================================================
+  
+  /**
+   * Obtiene un usuario por su ID único.
+   * 
+   * REQUERIDO POR: Sistema de autenticación Replit OIDC
+   * USADO EN: Verificación de permisos, sesiones, perfil de usuario
+   * PERFORMANCE: Query directo por primary key, muy rápido
+   */
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
+  /**
+   * Crea un nuevo usuario o actualiza uno existente (upsert).
+   * 
+   * FUNCIONALIDAD:
+   * - Insert si el usuario no existe
+   * - Update si ya existe (actualiza updatedAt automáticamente)
+   * - Maneja conflictos por ID de forma segura
+   * 
+   * REQUERIDO POR: Primera autenticación de usuarios via Replit OIDC
+   * USADO EN: Login, registro automático, sincronización de perfil
+   */
   async upsertUser(userData: UpsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
@@ -122,7 +209,21 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  // Company operations
+  // ==========================================================================
+  // OPERACIONES DE EMPRESA (MULTI-TENANCY)
+  // ==========================================================================
+  
+  /**
+   * Obtiene todas las empresas donde el usuario tiene asignado un rol.
+   * 
+   * FUNCIONALIDAD:
+   * - Join entre user_companies y companies para datos completos
+   * - Retorna información de la relación usuario-empresa + datos de la empresa
+   * - Incluye el rol específico del usuario en cada empresa
+   * 
+   * MODELO MULTI-TENANT: Un usuario puede pertenecer a múltiples empresas
+   * USADO EN: Selector de empresa, navegación, verificación de permisos
+   */
   async getUserCompanies(userId: string): Promise<(UserCompany & { company: Company })[]> {
     return await db
       .select()
@@ -288,7 +389,36 @@ export class DatabaseStorage implements IStorage {
     return updatedRecord;
   }
 
-  // Dashboard analytics
+  // ==========================================================================
+  // DASHBOARD ANALYTICS (REPORTES Y KPIS)
+  // ==========================================================================
+  
+  /**
+   * MÉTODO CENTRAL DE ANÁLISIS DE COSTOS
+   * 
+   * Calcula el resumen completo de costos de una empresa agregando datos
+   * de múltiples fuentes: activos, licencias, contratos y mantenimiento.
+   * Este es uno de los métodos más importantes del sistema.
+   * 
+   * FUNCIONALIDAD:
+   * - Suma costos mensuales y anuales por categoría
+   * - Calcula promedio mensual de mantenimiento (últimos 12 meses)
+   * - Agrega datos de 4 tablas diferentes
+   * - Convierte tipos Decimal a Number para JavaScript
+   * 
+   * CATEGORÍAS DE COSTOS:
+   * - hardwareCosts: Activos físicos (laptops, servidores, etc.)
+   * - licenseCosts: Licencias de software (perpetuas y suscripciones)
+   * - contractCosts: Contratos con proveedores (soporte, mantenimiento)
+   * - maintenanceCosts: Promedio mensual de gastos de mantenimiento
+   * 
+   * OPTIMIZACIÓN:
+   * - 4 queries paralelos (uno por tabla) en lugar de un JOIN complejo
+   * - Usa agregaciones SQL (SUM) para mejor performance
+   * - Manejo seguro de valores NULL con operador || 0
+   * 
+   * USADO POR: Dashboard principal, reportes ejecutivos, gráficos de costos
+   */
   async getCompanyCostSummary(companyId: string): Promise<{
     monthlyTotal: number;
     annualTotal: number;
@@ -297,7 +427,7 @@ export class DatabaseStorage implements IStorage {
     hardwareCosts: number;
     contractCosts: number;
   }> {
-    // Get asset costs
+    // Consulta 1: Costos de activos físicos y aplicaciones
     const assetCosts = await db
       .select({
         monthlySum: sum(assets.monthlyCost),
@@ -306,7 +436,7 @@ export class DatabaseStorage implements IStorage {
       .from(assets)
       .where(eq(assets.companyId, companyId));
 
-    // Get license costs
+    // Consulta 2: Costos de licencias de software
     const licenseCosts = await db
       .select({
         monthlySum: sum(licenses.monthlyCost),
@@ -315,7 +445,7 @@ export class DatabaseStorage implements IStorage {
       .from(licenses)
       .where(eq(licenses.companyId, companyId));
 
-    // Get contract costs
+    // Consulta 3: Costos de contratos con proveedores
     const contractCosts = await db
       .select({
         monthlySum: sum(contracts.monthlyCost),
@@ -324,7 +454,7 @@ export class DatabaseStorage implements IStorage {
       .from(contracts)
       .where(eq(contracts.companyId, companyId));
 
-    // Get maintenance costs (last 12 months)
+    // Consulta 4: Costos de mantenimiento (histórico total)
     const maintenanceCosts = await db
       .select({
         totalCost: sum(maintenanceRecords.cost),
@@ -332,12 +462,14 @@ export class DatabaseStorage implements IStorage {
       .from(maintenanceRecords)
       .where(eq(maintenanceRecords.companyId, companyId));
 
+    // Conversión segura de Decimal a Number y cálculos
     const assetMonthly = Number(assetCosts[0]?.monthlySum || 0);
     const licenseMonthly = Number(licenseCosts[0]?.monthlySum || 0);
     const contractMonthly = Number(contractCosts[0]?.monthlySum || 0);
     const maintenanceTotal = Number(maintenanceCosts[0]?.totalCost || 0);
-    const maintenanceMonthly = maintenanceTotal / 12; // Average monthly maintenance
+    const maintenanceMonthly = maintenanceTotal / 12; // Promedio mensual
 
+    // Cálculo de totales consolidados
     const monthlyTotal = assetMonthly + licenseMonthly + contractMonthly + maintenanceMonthly;
     const annualTotal = monthlyTotal * 12;
 

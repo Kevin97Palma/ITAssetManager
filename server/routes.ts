@@ -1,3 +1,28 @@
+/**
+ * ARCHIVO PRINCIPAL DE RUTAS DEL BACKEND
+ * 
+ * Este archivo contiene todas las rutas de la API REST del sistema de gestión de activos IT.
+ * El sistema está estructurado como un backend de microservicios con separación clara de responsabilidades:
+ * 
+ * ARQUITECTURA DEL SISTEMA:
+ * - Modelo MVC: Controladores (routes) -> Servicios (storage) -> Modelos (schema)
+ * - Autenticación: Replit OIDC con roles jerárquicos y sesiones seguras
+ * - Base de Datos: PostgreSQL con Drizzle ORM para operaciones type-safe
+ * - Validación: Esquemas Zod para validación de entrada y tipos TypeScript
+ * 
+ * ROLES Y PERMISOS:
+ * - super_admin: Acceso completo a todas las empresas y configuración del sistema
+ * - manager_owner: Gestión completa de su empresa (crear/editar/eliminar activos)
+ * - technical_admin: Gestión técnica (activos, contratos, licencias, mantenimiento)
+ * - technician: Solo lectura y creación de registros de mantenimiento
+ * 
+ * SEGURIDAD:
+ * - Todas las rutas requieren autenticación via middleware isAuthenticated
+ * - Validación de entrada con esquemas Zod antes de procesar datos
+ * - Scope de empresa: Todos los datos están aislados por companyId
+ * - Logging de actividad: Todas las acciones se registran para auditoría
+ */
+
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -11,11 +36,35 @@ import {
   insertNotificationSchema,
 } from "@shared/schema";
 
+/**
+ * FUNCIÓN PRINCIPAL DE REGISTRO DE RUTAS
+ * 
+ * Esta función configura todas las rutas de la API y el middleware de autenticación.
+ * Retorna un servidor HTTP configurado para producción.
+ * 
+ * @param app - Aplicación Express configurada
+ * @returns Servidor HTTP listo para iniciar
+ */
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
+  // Configurar middleware de autenticación Replit OIDC
   await setupAuth(app);
 
-  // Auth routes
+  // =============================================================================
+  // RUTAS DE AUTENTICACIÓN
+  // =============================================================================
+  
+  /**
+   * GET /api/auth/user
+   * Obtiene la información del usuario autenticado actual.
+   * 
+   * FUNCIONALIDAD:
+   * - Extrae el ID de usuario desde el token JWT (req.user.claims.sub)
+   * - Consulta los datos completos del usuario en la base de datos
+   * - Retorna el perfil del usuario con rol y metadatos
+   * 
+   * SEGURIDAD: Requiere autenticación válida via isAuthenticated middleware
+   * USADO POR: Header, perfil de usuario, verificación de permisos
+   */
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -27,7 +76,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Company routes
+  // =============================================================================
+  // RUTAS DE GESTIÓN DE EMPRESAS
+  // =============================================================================
+  
+  /**
+   * GET /api/companies
+   * Obtiene todas las empresas a las que pertenece el usuario autenticado.
+   * 
+   * FUNCIONALIDAD:
+   * - Lista las empresas donde el usuario tiene asignado un rol
+   * - Incluye información del plan (PyME/Professional) y límites
+   * - Filtra solo empresas activas donde el usuario tiene permisos
+   * 
+   * MODELO DE DATOS: Retorna UserCompany[] con información anidada de Company
+   * USADO POR: Selector de empresa, dashboard, navegación
+   */
   app.get('/api/companies', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -39,6 +103,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * POST /api/companies
+   * Crea una nueva empresa y asigna al usuario como manager_owner.
+   * 
+   * FUNCIONALIDAD:
+   * - Valida los datos de entrada con insertCompanySchema (Zod)
+   * - Crea la empresa con valores por defecto según el plan seleccionado
+   * - Asigna automáticamente al creador como manager_owner
+   * - Registra la acción en el log de auditoría
+   * 
+   * VALIDACIÓN: Esquema Zod garantiza integridad de datos
+   * AUDITORÍA: Todas las creaciones se registran con detalles completos
+   * AUTORIZACIÓN: El creador automáticamente recibe permisos de propietario
+   */
   app.post('/api/companies', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -47,6 +125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const company = await storage.createCompany(validatedData);
       await storage.addUserToCompany(userId, company.id, "manager_owner");
       
+      // Registrar actividad para auditoría
       await storage.logActivity({
         companyId: company.id,
         userId,
@@ -63,7 +142,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Dashboard routes
+  // =============================================================================
+  // RUTAS DE DASHBOARD Y ANALYTICS
+  // =============================================================================
+  
+  /**
+   * GET /api/dashboard/:companyId/summary
+   * Obtiene el resumen ejecutivo de costos y activos para el dashboard principal.
+   * 
+   * FUNCIONALIDAD:
+   * - Calcula costos totales mensuales y anuales por categoría
+   * - Cuenta activos por tipo (físicos, aplicaciones, licencias, contratos)
+   * - Agrega datos de múltiples fuentes (assets, licenses, contracts, maintenance)
+   * - Optimizado para mostrar KPIs en tiempo real
+   * 
+   * MODELO DE DATOS:
+   * costs: { monthlyTotal, annualTotal, licenseCosts, maintenanceCosts, hardwareCosts, contractCosts }
+   * assets: { totalAssets, physicalAssets, applications, licenses, contracts }
+   * 
+   * USADO POR: Dashboard principal, gráficos de resumen, reportes ejecutivos
+   */
   app.get('/api/dashboard/:companyId/summary', isAuthenticated, async (req: any, res) => {
     try {
       const { companyId } = req.params;
@@ -80,6 +178,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * GET /api/dashboard/:companyId/activity
+   * Obtiene el log de actividad reciente para mostrar en el dashboard.
+   * 
+   * FUNCIONALIDAD:
+   * - Lista las últimas acciones realizadas en la empresa (crear, editar, eliminar)
+   * - Incluye información del usuario que realizó la acción
+   * - Parámetro opcional 'limit' para controlar cantidad de registros
+   * - Ordenado por fecha de creación descendente (más recientes primero)
+   * 
+   * USADO POR: Timeline de actividad, auditoría, seguimiento de cambios
+   */
   app.get('/api/dashboard/:companyId/activity', isAuthenticated, async (req: any, res) => {
     try {
       const { companyId } = req.params;
@@ -92,7 +202,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Asset routes
+  // =============================================================================
+  // RUTAS DE GESTIÓN DE ACTIVOS
+  // =============================================================================
+  
+  /**
+   * GET /api/assets/:companyId
+   * Obtiene todos los activos de una empresa específica.
+   * 
+   * FUNCIONALIDAD:
+   * - Lista activos físicos (laptops, servidores, impresoras, etc.)
+   * - Lista aplicaciones (SaaS, desarrollo personalizado)
+   * - Incluye información de costos, estado, y fechas de vencimiento
+   * - Filtrado automático por companyId para seguridad multi-tenant
+   * 
+   * MODELO UNIFICADO: Un solo endpoint para todos los tipos de activos
+   * USADO POR: Tabla de activos, inventario, reportes, dashboard
+   */
   app.get('/api/assets/:companyId', isAuthenticated, async (req: any, res) => {
     try {
       const { companyId } = req.params;

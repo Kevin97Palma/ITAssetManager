@@ -1,3 +1,33 @@
+/**
+ * PANEL DE ADMINISTRACIÓN SUPER ADMIN
+ * 
+ * Este componente implementa el panel de control principal para super administradores.
+ * Permite gestionar todas las empresas del sistema, cambiar planes, activar/desactivar
+ * empresas, y utilizar el modo soporte para acceder a cualquier empresa.
+ * 
+ * FUNCIONALIDADES PRINCIPALES:
+ * - Vista global de todas las empresas registradas
+ * - Gestión de planes (PyME/Professional) con límites dinámicos
+ * - Control de estado de empresas (activo/inactivo)
+ * - Modo soporte: Acceso temporal a cualquier empresa para soporte técnico
+ * - Métricas en tiempo real: usuarios, activos por empresa
+ * - Interfaz visual clara con iconos y badges de estado
+ * 
+ * SEGURIDAD:
+ * - Verificación de rol super_admin antes de mostrar contenido
+ * - Redirección automática si no tiene permisos
+ * - Sesiones de soporte con logging automático para auditoría
+ * - Consultas protegidas con autenticación obligatoria
+ * 
+ * ARQUITECTURA DE COMPONENTES:
+ * - useQuery para fetch de datos reactivo
+ * - useMutation para operaciones de escritura
+ * - Estado local para gestión de formularios y modales
+ * - Invalidación automática de caché tras operaciones
+ * 
+ * USADO POR: Solo super administradores del sistema
+ */
+
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
