@@ -48,14 +48,28 @@ export default function Sidebar({ selectedCompanyId, onCompanyChange, showAdminP
   const [location] = useLocation();
   const { user } = useAuth();
   
+  // Check if we're in support mode
+  const { data: supportStatus } = useQuery({
+    queryKey: ["/api/admin/support-status"],
+    enabled: user?.role === 'super_admin',
+    retry: false,
+    refetchInterval: 10000,
+  });
+  
   const { data: userCompanies = [] } = useQuery({
     queryKey: ["/api/companies"],
+    enabled: !supportStatus?.supportMode,
   });
+
+  // Use support company or user companies
+  const companies = supportStatus?.supportMode 
+    ? [{ company: supportStatus.company }] 
+    : userCompanies;
 
   const isAdmin = user?.role === 'super_admin';
   const navigationItems = getNavigationItems(isAdmin, showAdminPanel || false);
 
-  const selectedCompany = userCompanies.find((uc: any) => uc.company.id === selectedCompanyId);
+  const selectedCompany = companies.find((uc: any) => uc.company.id === selectedCompanyId);
 
   return (
     <aside className="w-64 bg-card border-r border-border">
@@ -76,7 +90,7 @@ export default function Sidebar({ selectedCompanyId, onCompanyChange, showAdminP
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {userCompanies.map((uc: any) => (
+              {companies.map((uc: any) => (
                 <SelectItem key={uc.company.id} value={uc.company.id} data-testid={`option-company-${uc.company.id}`}>
                   {uc.company.name}
                 </SelectItem>

@@ -49,19 +49,32 @@ export default function Dashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: userCompanies = [] } = useQuery({
-    queryKey: ["/api/companies"],
+  // Check if we're in support mode
+  const { data: supportStatus } = useQuery({
+    queryKey: ["/api/admin/support-status"],
     enabled: isAuthenticated,
+    retry: false,
+    refetchInterval: 10000, // Check every 10 seconds
   });
 
-  const selectedCompany = userCompanies.find((uc: any) => uc.company.id === selectedCompanyId);
+  const { data: userCompanies = [] } = useQuery({
+    queryKey: ["/api/companies"],
+    enabled: isAuthenticated && !supportStatus?.supportMode,
+  });
+
+  // Use support company or user companies
+  const companies = supportStatus?.supportMode 
+    ? [{ company: supportStatus.company }] 
+    : userCompanies;
+
+  const selectedCompany = companies.find((uc: any) => uc.company.id === selectedCompanyId);
 
   // Set default company when companies are loaded
   useEffect(() => {
-    if ((userCompanies as any[]).length > 0 && !selectedCompanyId) {
-      setSelectedCompanyId((userCompanies as any[])[0].company.id);
+    if ((companies as any[]).length > 0 && !selectedCompanyId) {
+      setSelectedCompanyId((companies as any[])[0].company.id);
     }
-  }, [userCompanies, selectedCompanyId]);
+  }, [companies, selectedCompanyId]);
 
   const { data: dashboardData, isLoading: isDashboardLoading, error: dashboardError } = useQuery({
     queryKey: ["/api/dashboard", selectedCompanyId, "summary"],
