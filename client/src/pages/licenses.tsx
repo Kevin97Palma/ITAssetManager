@@ -42,17 +42,30 @@ export default function Licenses() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
+  // Check if we're in support mode
+  const { data: supportStatus } = useQuery({
+    queryKey: ["/api/admin/support-status"],
+    enabled: isAuthenticated,
+    retry: false,
+    refetchInterval: 10000,
+  });
+
   const { data: userCompanies = [] } = useQuery({
     queryKey: ["/api/companies"],
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !supportStatus?.supportMode,
   });
+
+  // Use support company or user companies
+  const companies = supportStatus?.supportMode 
+    ? [{ company: supportStatus.company }] 
+    : userCompanies;
 
   // Set default company when companies are loaded
   useEffect(() => {
-    if (userCompanies.length > 0 && !selectedCompanyId) {
-      setSelectedCompanyId(userCompanies[0].company.id);
+    if (companies.length > 0 && !selectedCompanyId) {
+      setSelectedCompanyId(companies[0].company.id);
     }
-  }, [userCompanies, selectedCompanyId]);
+  }, [companies, selectedCompanyId]);
 
   const { data: licenses = [], isLoading: isLicensesLoading, error: licensesError } = useQuery({
     queryKey: ["/api/licenses", selectedCompanyId],
