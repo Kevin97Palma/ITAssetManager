@@ -18,64 +18,45 @@ export default function Header({ title, subtitle, selectedCompanyId }: HeaderPro
   const { user } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Get assets for notifications
-  const { data: assets = [] } = useQuery({
-    queryKey: ["/api/assets", selectedCompanyId],
+  // Get notifications from API
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["/api/notifications", selectedCompanyId],
     enabled: !!selectedCompanyId,
   });
 
-  // Get expiring services notifications
-  const getExpiringServices = () => {
+  // Get unread notification count
+  const { data: unreadData } = useQuery({
+    queryKey: ["/api/notifications/unread-count", selectedCompanyId],
+    enabled: !!selectedCompanyId,
+  });
+
+  const unreadCount = unreadData?.count || 0;
+
+  // Format notification date
+  const formatNotificationDate = (dateString: string) => {
+    const date = new Date(dateString);
     const now = new Date();
-    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
     
-    const notifications: any[] = [];
-    
-    assets.forEach((asset: any) => {
-      if (asset.type !== 'application') return;
-      
-      const services = [
-        { name: 'Dominio', date: asset.domainExpiry, app: asset.name },
-        { name: 'SSL', date: asset.sslExpiry, app: asset.name },
-        { name: 'Hosting', date: asset.hostingExpiry, app: asset.name },
-        { name: 'Servidor', date: asset.serverExpiry, app: asset.name }
-      ];
-      
-      services.forEach(service => {
-        if (!service.date) return;
-        
-        const expiryDate = new Date(service.date);
-        if (expiryDate < now) {
-          notifications.push({
-            type: 'expired',
-            service: service.name,
-            app: service.app,
-            date: expiryDate,
-            message: `${service.name} de ${service.app} ha expirado`
-          });
-        } else if (expiryDate <= thirtyDaysFromNow) {
-          const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          notifications.push({
-            type: 'expiring',
-            service: service.name,
-            app: service.app,
-            date: expiryDate,
-            daysLeft,
-            message: `${service.name} de ${service.app} expira en ${daysLeft} día${daysLeft === 1 ? '' : 's'}`
-          });
-        }
-      });
-    });
-    
-    return notifications.sort((a, b) => {
-      if (a.type === 'expired' && b.type !== 'expired') return -1;
-      if (a.type !== 'expired' && b.type === 'expired') return 1;
-      return a.date.getTime() - b.date.getTime();
-    });
+    if (diffInHours < 1) {
+      return 'hace unos minutos';
+    } else if (diffInHours < 24) {
+      return `hace ${Math.floor(diffInHours)} hora${Math.floor(diffInHours) === 1 ? '' : 's'}`;
+    } else {
+      return date.toLocaleDateString('es-ES');
+    }
   };
 
-  const notifications = getExpiringServices();
-  const hasNotifications = notifications.length > 0;
+  // Mark notification as read
+  const markAsRead = async (notificationId: string) => {
+    try {
+      await fetch(`/api/notifications/${notificationId}/mark-read`, { method: 'POST' });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const hasNotifications = unreadCount > 0;
 
   const getInitials = (firstName?: string, lastName?: string) => {
     if (!firstName && !lastName) return "U";
@@ -110,7 +91,7 @@ export default function Header({ title, subtitle, selectedCompanyId }: HeaderPro
                 <Bell className="w-5 h-5" />
                 {hasNotifications && (
                   <Badge className="absolute -top-1 -right-1 min-w-[1.2rem] h-5 p-1 text-xs bg-destructive text-destructive-foreground">
-                    {notifications.length > 9 ? '9+' : notifications.length}
+                    {unreadCount > 9 ? '9+' : unreadCount}
                   </Badge>
                 )}
               </Button>
@@ -125,26 +106,30 @@ export default function Header({ title, subtitle, selectedCompanyId }: HeaderPro
               <ScrollArea className="max-h-64">
                 {notifications.length === 0 ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
-                    No hay servicios próximos a expirar
+                    No hay notificaciones
                   </div>
                 ) : (
-                  notifications.map((notification, index) => (
-                    <div key={index} className={`p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer ${
-                      notification.type === 'expired' ? 'bg-destructive/5' : 'bg-chart-4/5'
-                    }`}>
+                  notifications.map((notification: any) => (
+                    <div 
+                      key={notification.id} 
+                      className={`p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer ${
+                        notification.type.includes('expired') ? 'bg-destructive/5' : 'bg-warning/5'
+                      }`}
+                      onClick={() => markAsRead(notification.id)}
+                    >
                       <div className="flex items-start space-x-2">
                         <AlertTriangle className={`w-4 h-4 mt-0.5 ${
-                          notification.type === 'expired' ? 'text-destructive' : 'text-chart-4'
+                          notification.type.includes('expired') ? 'text-destructive' : 'text-warning'
                         }`} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">
-                            {notification.app}
+                            {notification.title}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {notification.message}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {notification.date.toLocaleDateString()}
+                            {formatNotificationDate(notification.createdAt)}
                           </p>
                         </div>
                         <Badge variant={notification.type === 'expired' ? 'destructive' : 'outline'} className="text-xs">

@@ -8,6 +8,7 @@ import {
   insertLicenseSchema,
   insertMaintenanceRecordSchema,
   insertCompanySchema,
+  insertNotificationSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -291,6 +292,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating maintenance record:", error);
       res.status(400).json({ message: "Failed to create maintenance record" });
+    }
+  });
+
+  // Technician routes
+  app.get('/api/technicians/:companyId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { companyId } = req.params;
+      const technicians = await storage.getTechniciansByCompany(companyId);
+      res.json(technicians);
+    } catch (error) {
+      console.error("Error fetching technicians:", error);
+      res.status(500).json({ message: "Failed to fetch technicians" });
+    }
+  });
+
+  // Notification routes
+  app.get('/api/notifications/:companyId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { companyId } = req.params;
+      const notifications = await storage.getNotificationsByUser(userId, companyId);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  app.get('/api/notifications/unread-count/:companyId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { companyId } = req.params;
+      const count = await storage.getUnreadNotificationCount(userId, companyId);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error fetching unread notification count:", error);
+      res.status(500).json({ message: "Failed to fetch unread notification count" });
+    }
+  });
+
+  app.post('/api/notifications/:id/mark-read', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      await storage.markNotificationAsRead(id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  app.post('/api/notifications/create-expiry-alerts/:companyId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { companyId } = req.params;
+      await storage.createExpiryNotifications(companyId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error creating expiry notifications:", error);
+      res.status(500).json({ message: "Failed to create expiry notifications" });
     }
   });
 

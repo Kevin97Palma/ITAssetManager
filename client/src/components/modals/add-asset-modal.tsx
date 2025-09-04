@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertAssetSchema } from "@shared/schema";
@@ -40,6 +40,12 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Get technicians for assignment
+  const { data: technicians = [] } = useQuery({
+    queryKey: ["/api/technicians", companyId],
+    enabled: !!companyId,
+  });
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -55,6 +61,7 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
       status: "active",
       location: "",
       assignedTo: "",
+      assignedTechnicianId: "",
       notes: "",
       applicationType: "saas",
       url: "",
@@ -175,6 +182,35 @@ export default function AddAssetModal({ open, onOpenChange, companyId }: AddAsse
                       data-testid="input-asset-description"
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="assignedTechnicianId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Técnico Asignado</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-assigned-technician">
+                        <SelectValue placeholder="Seleccionar técnico (opcional)..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">Sin asignar</SelectItem>
+                      {technicians.map((tech: any) => (
+                        <SelectItem key={tech.id} value={tech.id}>
+                          {tech.firstName || tech.lastName 
+                            ? `${tech.firstName || ''} ${tech.lastName || ''}`.trim()
+                            : tech.email
+                          }
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

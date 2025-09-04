@@ -411,6 +411,171 @@ export class DatabaseStorage implements IStorage {
         user: row.users!
       })));
   }
+
+  // Technician operations
+  async getTechniciansByCompany(companyId: string): Promise<User[]> {
+    const technicians = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        profileImageUrl: users.profileImageUrl,
+        role: users.role,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .innerJoin(userCompanies, eq(users.id, userCompanies.userId))
+      .where(
+        and(
+          eq(userCompanies.companyId, companyId),
+          eq(userCompanies.role, "technician" as any)
+        )
+      );
+    
+    return technicians;
+  }
+
+  // Notification operations
+  async getNotificationsByUser(userId: string, companyId: string): Promise<Notification[]> {
+    return await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.companyId, companyId)
+        )
+      )
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [newNotification] = await db
+      .insert(notifications)
+      .values(notification)
+      .returning();
+    return newNotification;
+  }
+
+  async markNotificationAsRead(id: string, userId: string): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.userId, userId)
+        )
+      );
+  }
+
+  async getUnreadNotificationCount(userId: string, companyId: string): Promise<number> {
+    const result = await db
+      .select({ count: count() })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.companyId, companyId),
+          eq(notifications.isRead, false)
+        )
+      );
+    
+    return result[0]?.count || 0;
+  }
+
+  async createExpiryNotifications(companyId: string): Promise<void> {
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    // Get all assets with expiry dates
+    const expiringAssets = await db
+      .select()
+      .from(assets)
+      .where(eq(assets.companyId, companyId));
+
+    // Get company admins and technicians
+    const recipients = await db
+      .select({
+        userId: users.id,
+        role: userCompanies.role,
+      })
+      .from(users)
+      .innerJoin(userCompanies, eq(users.id, userCompanies.userId))
+      .where(eq(userCompanies.companyId, companyId));
+
+    const notificationsList: any[] = [];
+
+    for (const asset of expiringAssets) {
+      if (asset.type !== 'application') continue;
+
+      const services = [
+        { name: 'Dominio', date: asset.domainExpiry },
+        { name: 'SSL', date: asset.sslExpiry },
+        { name: 'Hosting', date: asset.hostingExpiry },
+        { name: 'Servidor', date: asset.serverExpiry },
+      ];
+
+      for (const service of services) {
+        if (!service.date) continue;
+
+        const expiryDate = new Date(service.date);
+        let shouldNotify = false;
+        let urgency = '';
+
+        if (expiryDate < now) {
+          shouldNotify = true;
+          urgency = 'EXPIRADO';
+        } else if (expiryDate <= sevenDaysFromNow) {
+          shouldNotify = true;
+          urgency = 'CRÍTICO';
+        } else if (expiryDate <= thirtyDaysFromNow) {
+          shouldNotify = true;
+          urgency = 'PRÓXIMO A VENCER';
+        }
+
+        if (shouldNotify) {
+          // Notify assigned technician if exists
+          if ((asset as any).assignedTechnicianId) {
+            notificationsList.push({
+              companyId,
+              userId: (asset as any).assignedTechnicianId,
+              title: `${urgency}: ${service.name} - ${asset.name}`,
+              message: `El ${service.name.toLowerCase()} de ${asset.name} ${expiryDate < now ? 'ha expirado' : `expira el ${expiryDate.toLocaleDateString('es-ES')}`}`,
+              type: 'expiry_alert',
+              entityType: 'asset',
+              entityId: asset.id,
+              isRead: false,
+            });
+          }
+
+          // Notify all admins
+          for (const recipient of recipients) {
+            if (recipient.role !== 'technician' && recipient.userId !== (asset as any).assignedTechnicianId) {
+              notificationsList.push({
+                companyId,
+                userId: recipient.userId,
+                title: `${urgency}: ${service.name} - ${asset.name}`,
+                message: `El ${service.name.toLowerCase()} de ${asset.name} ${expiryDate < now ? 'ha expirado' : `expira el ${expiryDate.toLocaleDateString('es-ES')}`}`,
+                type: 'expiry_alert',
+                entityType: 'asset',
+                entityId: asset.id,
+                isRead: false,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Create all notifications
+    if (notificationsList.length > 0) {
+      await db.insert(notifications).values(notificationsList);
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();
