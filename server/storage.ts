@@ -7,7 +7,7 @@
  * 
  * ARQUITECTURA DEL STORAGE:
  * - Interface IStorage: Define el contrato para todas las operaciones de datos
- * - DatabaseStorage: Implementación usando Drizzle ORM y PostgreSQL
+ * - DatabaseStorage: Implementación usando queries SQL nativas con PostgreSQL
  * - Operaciones CRUD: Create, Read, Update, Delete para todas las entidades
  * - Queries avanzados: Analytics, dashboards, búsquedas complejas
  * - Transacciones: Para operaciones que requieren consistencia
@@ -16,25 +16,17 @@
  * - Separación de responsabilidades (SRP - Single Responsibility Principle)
  * - Fácil testing con implementaciones mock
  * - Reutilización de queries complejos
- * - Type safety con TypeScript y Drizzle
+ * - Type safety con TypeScript
  * - Centralización de lógica de negocio relacionada con datos
  * 
  * SEGURIDAD:
  * - Todas las queries incluyen filtros por companyId (multi-tenancy)
  * - Validación de permisos a nivel de datos
- * - Prevención de SQL injection via ORM
+ * - Prevención de SQL injection via prepared statements
  * - Logging automático de todas las operaciones críticas
  */
 
 import {
-  users,
-  companies,
-  userCompanies,
-  assets,
-  contracts,
-  licenses,
-  maintenanceRecords,
-  activityLog,
   type User,
   type UpsertUser,
   type Company,
@@ -51,8 +43,7 @@ import {
   type UserCompany,
   type CompanyRegistration,
 } from "@shared/schema";
-import { db } from "./db";
-import { eq, and, desc, sum, count } from "drizzle-orm";
+import { pool } from "./db";
 
 /**
  * INTERFAZ PRINCIPAL DEL STORAGE
@@ -62,7 +53,7 @@ import { eq, and, desc, sum, count } from "drizzle-orm";
  * sin afectar el resto de la aplicación.
  * 
  * ORGANIZACIÓN POR ENTIDADES:
- * - User operations: Gestión de usuarios (requerido para Replit Auth)
+ * - User operations: Gestión de usuarios (autenticación)
  * - Company operations: Multi-tenancy y gestión empresarial  
  * - Asset operations: CRUD completo de activos físicos y aplicaciones
  * - Contract operations: Gestión de contratos con proveedores
@@ -150,23 +141,22 @@ export interface IStorage {
 }
 
 /**
- * IMPLEMENTACIÓN PRINCIPAL DEL STORAGE USANDO POSTGRESQL
+ * IMPLEMENTACIÓN PRINCIPAL DEL STORAGE USANDO POSTGRESQL NATIVO
  * 
- * Esta clase implementa todos los métodos definidos en IStorage usando Drizzle ORM.
+ * Esta clase implementa todos los métodos definidos en IStorage usando queries SQL nativas.
  * Cada método está optimizado para performance y seguridad, con manejo de errores
  * y validación de datos integrada.
  * 
  * PATRONES IMPLEMENTADOS:
  * - Repository Pattern: Encapsula la lógica de acceso a datos
- * - Unit of Work: Transacciones para operaciones complejas
+ * - Prepared Statements: Prevención de SQL injection
  * - Query Object: Queries complejos reutilizables
- * - Active Record: Los objetos encapsulan su propio CRUD
  * 
  * OPTIMIZACIONES:
  * - Índices automáticos en columnas de búsqueda frecuente
  * - Joins optimizados para reducir N+1 queries
  * - Paginación para listados grandes
- * - Caching a nivel de query (consideración futura)
+ * - Connection pooling para mejor performance
  */
 export class DatabaseStorage implements IStorage {
   
@@ -176,35 +166,28 @@ export class DatabaseStorage implements IStorage {
   
   /**
    * Obtiene un usuario por su ID único.
-   * 
-   * USADO EN: Verificación de permisos, sesiones, perfil de usuario
-   * PERFORMANCE: Query directo por primary key, muy rápido
    */
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    const result = await pool.query(
+      'SELECT * FROM users WHERE id = $1',
+      [id]
+    );
+    return result.rows[0] as User | undefined;
   }
 
   /**
    * Obtiene un usuario por su email.
-   * 
-   * USADO EN: Login, verificación de email único durante registro
-   * PERFORMANCE: Index en email column para búsqueda rápida
    */
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
+    const result = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
+    return result.rows[0] as User | undefined;
   }
 
   /**
    * Crea un nuevo usuario con password hash.
-   * 
-   * FUNCIONALIDAD:
-   * - Crea usuario con contraseña hasheada con bcrypt
-   * - Valida que el email no exista previamente
-   * - Asigna rol por defecto o rol especificado
-   * 
-   * USADO EN: Registro de nuevos usuarios, creación de usuarios por admin
    */
   async createUser(
     email: string, 
@@ -213,17 +196,13 @@ export class DatabaseStorage implements IStorage {
     lastName: string, 
     role: "super_admin" | "technical_admin" | "manager_owner" = "technical_admin"
   ): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values({
-        email,
-        passwordHash,
-        firstName,
-        lastName,
-        role,
-      })
-      .returning();
-    return user;
+    const result = await pool.query(
+      `INSERT INTO users (email, password_hash, first_name, last_name, role)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [email, passwordHash, firstName, lastName, role]
+    );
+    return result.rows[0] as User;
   }
 
   // ==========================================================================
@@ -232,233 +211,422 @@ export class DatabaseStorage implements IStorage {
   
   /**
    * Obtiene todas las empresas donde el usuario tiene asignado un rol.
-   * 
-   * FUNCIONALIDAD:
-   * - Join entre user_companies y companies para datos completos
-   * - Retorna información de la relación usuario-empresa + datos de la empresa
-   * - Incluye el rol específico del usuario en cada empresa
-   * 
-   * MODELO MULTI-TENANT: Un usuario puede pertenecer a múltiples empresas
-   * USADO EN: Selector de empresa, navegación, verificación de permisos
    */
   async getUserCompanies(userId: string): Promise<(UserCompany & { company: Company })[]> {
-    return await db
-      .select()
-      .from(userCompanies)
-      .leftJoin(companies, eq(userCompanies.companyId, companies.id))
-      .where(eq(userCompanies.userId, userId))
-      .then(rows => rows.map(row => ({
-        ...row.user_companies,
-        company: row.companies!
-      })));
+    const result = await pool.query(
+      `SELECT 
+        uc.*,
+        c.id as "company.id",
+        c.name as "company.name",
+        c.description as "company.description",
+        c.plan as "company.plan",
+        c.max_users as "company.max_users",
+        c.max_assets as "company.max_assets",
+        c.is_active as "company.is_active",
+        c.ruc as "company.ruc",
+        c.cedula as "company.cedula",
+        c.address as "company.address",
+        c.phone as "company.phone",
+        c.email as "company.email",
+        c.created_at as "company.created_at",
+        c.updated_at as "company.updated_at"
+      FROM user_companies uc
+      LEFT JOIN companies c ON uc.company_id = c.id
+      WHERE uc.user_id = $1`,
+      [userId]
+    );
+    
+    return result.rows.map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      companyId: row.company_id,
+      role: row.role,
+      createdAt: row.created_at,
+      company: {
+        id: row['company.id'],
+        name: row['company.name'],
+        description: row['company.description'],
+        plan: row['company.plan'],
+        maxUsers: row['company.max_users'],
+        maxAssets: row['company.max_assets'],
+        isActive: row['company.is_active'],
+        ruc: row['company.ruc'],
+        cedula: row['company.cedula'],
+        address: row['company.address'],
+        phone: row['company.phone'],
+        email: row['company.email'],
+        createdAt: row['company.created_at'],
+        updatedAt: row['company.updated_at'],
+      }
+    }));
   }
 
   async createCompany(company: InsertCompany): Promise<Company> {
-    const [newCompany] = await db.insert(companies).values(company).returning();
-    return newCompany;
+    const result = await pool.query(
+      `INSERT INTO companies (name, description, plan, max_users, max_assets, ruc, cedula, address, phone, email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        company.name,
+        company.description,
+        company.plan,
+        company.maxUsers,
+        company.maxAssets,
+        company.ruc,
+        company.cedula,
+        company.address,
+        company.phone,
+        company.email,
+      ]
+    );
+    return result.rows[0] as Company;
   }
 
-  async addUserToCompany(userId: string, companyId: string, role: "super_admin" | "technical_admin" | "manager_owner"): Promise<UserCompany> {
-    const [userCompany] = await db
-      .insert(userCompanies)
-      .values({ userId, companyId, role })
-      .returning();
-    return userCompany;
+  async addUserToCompany(userId: string, companyId: string, role: "super_admin" | "technical_admin" | "manager_owner" | "technician"): Promise<UserCompany> {
+    const result = await pool.query(
+      `INSERT INTO user_companies (user_id, company_id, role)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [userId, companyId, role]
+    );
+    return result.rows[0] as UserCompany;
   }
 
   /**
    * Registra una nueva empresa con su usuario propietario.
-   * 
-   * FUNCIONALIDAD:
-   * - Crea el usuario propietario con contraseña hasheada
-   * - Crea la empresa con los datos de registro
-   * - Establece la relación usuario-empresa con rol manager_owner
-   * - Maneja transacción para consistencia de datos
-   * 
-   * NOTA: El password debe venir ya hasheado desde el endpoint
    */
   async registerCompany(companyData: CompanyRegistration & { passwordHash: string }): Promise<{ company: Company; user: User }> {
-    // Verificar si el email ya existe
-    const existingUser = await this.getUserByEmail(companyData.email);
-    if (existingUser) {
-      throw new Error("El email ya está registrado");
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Verificar si el email ya existe
+      const existingUser = await this.getUserByEmail(companyData.email);
+      if (existingUser) {
+        throw new Error("El email ya está registrado");
+      }
+      
+      // Crear el usuario
+      const userResult = await client.query(
+        `INSERT INTO users (email, password_hash, first_name, last_name, role)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [companyData.email, companyData.passwordHash, companyData.firstName, companyData.lastName, 'manager_owner']
+      );
+      const user = userResult.rows[0] as User;
+      
+      // Crear la empresa
+      const companyResult = await client.query(
+        `INSERT INTO companies (name, plan, max_users, max_assets, ruc, cedula, address, phone, email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING *`,
+        [
+          companyData.name,
+          companyData.plan,
+          companyData.plan === "pyme" ? 10 : 50,
+          companyData.plan === "pyme" ? 500 : 2000,
+          companyData.plan === "pyme" ? companyData.ruc : null,
+          companyData.plan === "professional" ? companyData.cedula : null,
+          companyData.address,
+          companyData.phone,
+          companyData.email,
+        ]
+      );
+      const company = companyResult.rows[0] as Company;
+      
+      // Crear relación usuario-empresa
+      await client.query(
+        `INSERT INTO user_companies (user_id, company_id, role)
+         VALUES ($1, $2, $3)`,
+        [user.id, company.id, 'manager_owner']
+      );
+      
+      await client.query('COMMIT');
+      return { company, user };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-    
-    // Crear el usuario con password
-    const user = await this.createUser(
-      companyData.email,
-      companyData.passwordHash,
-      companyData.firstName,
-      companyData.lastName,
-      "manager_owner"
-    );
-    
-    // Crear la empresa
-    const [company] = await db
-      .insert(companies)
-      .values({
-        name: companyData.name,
-        plan: companyData.plan,
-        maxUsers: companyData.plan === "pyme" ? 10 : 50,
-        maxAssets: companyData.plan === "pyme" ? 500 : 2000,
-        ruc: companyData.plan === "pyme" ? companyData.ruc : undefined,
-        cedula: companyData.plan === "professional" ? companyData.cedula : undefined,
-        address: companyData.address,
-        phone: companyData.phone,
-        email: companyData.email,
-      })
-      .returning();
-      
-    // Crear relación usuario-empresa
-    await db
-      .insert(userCompanies)
-      .values({
-        userId: user.id,
-        companyId: company.id,
-        role: "manager_owner",
-      });
-      
-    return { company, user };
   }
 
   async getCompanyById(companyId: string): Promise<Company | undefined> {
-    const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
-    return company;
+    const result = await pool.query(
+      'SELECT * FROM companies WHERE id = $1',
+      [companyId]
+    );
+    return result.rows[0] as Company | undefined;
   }
 
-  // Asset operations
+  // ==========================================================================
+  // OPERACIONES DE ACTIVOS
+  // ==========================================================================
+  
   async getAssetsByCompany(companyId: string): Promise<Asset[]> {
-    return await db.select().from(assets).where(eq(assets.companyId, companyId));
+    const result = await pool.query(
+      'SELECT * FROM assets WHERE company_id = $1',
+      [companyId]
+    );
+    return result.rows as Asset[];
   }
 
   async getAssetById(id: string, companyId: string): Promise<Asset | undefined> {
-    const [asset] = await db
-      .select()
-      .from(assets)
-      .where(and(eq(assets.id, id), eq(assets.companyId, companyId)));
-    return asset;
+    const result = await pool.query(
+      'SELECT * FROM assets WHERE id = $1 AND company_id = $2',
+      [id, companyId]
+    );
+    return result.rows[0] as Asset | undefined;
   }
 
   async createAsset(asset: InsertAsset): Promise<Asset> {
-    const [newAsset] = await db.insert(assets).values(asset).returning();
-    return newAsset;
+    const result = await pool.query(
+      `INSERT INTO assets (
+        company_id, name, type, description, serial_number, model, manufacturer,
+        purchase_date, warranty_expiry, monthly_cost, annual_cost, status, location,
+        assigned_to, notes, application_type, url, version, domain_cost, ssl_cost,
+        hosting_cost, server_cost, domain_expiry, ssl_expiry, hosting_expiry, server_expiry
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      RETURNING *`,
+      [
+        asset.companyId, asset.name, asset.type, asset.description, asset.serialNumber,
+        asset.model, asset.manufacturer, asset.purchaseDate, asset.warrantyExpiry,
+        asset.monthlyCost, asset.annualCost, asset.status, asset.location,
+        asset.assignedTo, asset.notes, asset.applicationType, asset.url, asset.version,
+        asset.domainCost, asset.sslCost, asset.hostingCost, asset.serverCost,
+        asset.domainExpiry, asset.sslExpiry, asset.hostingExpiry, asset.serverExpiry
+      ]
+    );
+    return result.rows[0] as Asset;
   }
 
   async updateAsset(id: string, asset: Partial<InsertAsset>): Promise<Asset> {
-    const [updatedAsset] = await db
-      .update(assets)
-      .set({ ...asset, updatedAt: new Date() })
-      .where(eq(assets.id, id))
-      .returning();
-    return updatedAsset;
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    Object.entries(asset).forEach(([key, value]) => {
+      if (value !== undefined) {
+        const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        fields.push(`${snakeKey} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    });
+
+    fields.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const result = await pool.query(
+      `UPDATE assets SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+    return result.rows[0] as Asset;
   }
 
   async deleteAsset(id: string, companyId: string): Promise<void> {
-    await db
-      .delete(assets)
-      .where(and(eq(assets.id, id), eq(assets.companyId, companyId)));
+    await pool.query(
+      'DELETE FROM assets WHERE id = $1 AND company_id = $2',
+      [id, companyId]
+    );
   }
 
-  // Contract operations
+  // ==========================================================================
+  // OPERACIONES DE CONTRATOS
+  // ==========================================================================
+  
   async getContractsByCompany(companyId: string): Promise<Contract[]> {
-    return await db.select().from(contracts).where(eq(contracts.companyId, companyId));
+    const result = await pool.query(
+      'SELECT * FROM contracts WHERE company_id = $1',
+      [companyId]
+    );
+    return result.rows as Contract[];
   }
 
   async getContractById(id: string, companyId: string): Promise<Contract | undefined> {
-    const [contract] = await db
-      .select()
-      .from(contracts)
-      .where(and(eq(contracts.id, id), eq(contracts.companyId, companyId)));
-    return contract;
+    const result = await pool.query(
+      'SELECT * FROM contracts WHERE id = $1 AND company_id = $2',
+      [id, companyId]
+    );
+    return result.rows[0] as Contract | undefined;
   }
 
   async createContract(contract: InsertContract): Promise<Contract> {
-    const [newContract] = await db.insert(contracts).values(contract).returning();
-    return newContract;
+    const result = await pool.query(
+      `INSERT INTO contracts (
+        company_id, name, vendor, description, contract_type, start_date, end_date,
+        renewal_date, monthly_cost, annual_cost, status, auto_renewal, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *`,
+      [
+        contract.companyId, contract.name, contract.vendor, contract.description,
+        contract.contractType, contract.startDate, contract.endDate, contract.renewalDate,
+        contract.monthlyCost, contract.annualCost, contract.status, contract.autoRenewal,
+        contract.notes
+      ]
+    );
+    return result.rows[0] as Contract;
   }
 
   async updateContract(id: string, contract: Partial<InsertContract>): Promise<Contract> {
-    const [updatedContract] = await db
-      .update(contracts)
-      .set({ ...contract, updatedAt: new Date() })
-      .where(eq(contracts.id, id))
-      .returning();
-    return updatedContract;
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    Object.entries(contract).forEach(([key, value]) => {
+      if (value !== undefined) {
+        const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        fields.push(`${snakeKey} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    });
+
+    fields.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const result = await pool.query(
+      `UPDATE contracts SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+    return result.rows[0] as Contract;
   }
 
   async deleteContract(id: string, companyId: string): Promise<void> {
-    await db
-      .delete(contracts)
-      .where(and(eq(contracts.id, id), eq(contracts.companyId, companyId)));
+    await pool.query(
+      'DELETE FROM contracts WHERE id = $1 AND company_id = $2',
+      [id, companyId]
+    );
   }
 
-  // License operations
+  // ==========================================================================
+  // OPERACIONES DE LICENCIAS
+  // ==========================================================================
+  
   async getLicensesByCompany(companyId: string): Promise<License[]> {
-    return await db.select().from(licenses).where(eq(licenses.companyId, companyId));
+    const result = await pool.query(
+      'SELECT * FROM licenses WHERE company_id = $1',
+      [companyId]
+    );
+    return result.rows as License[];
   }
 
   async getLicenseById(id: string, companyId: string): Promise<License | undefined> {
-    const [license] = await db
-      .select()
-      .from(licenses)
-      .where(and(eq(licenses.id, id), eq(licenses.companyId, companyId)));
-    return license;
+    const result = await pool.query(
+      'SELECT * FROM licenses WHERE id = $1 AND company_id = $2',
+      [id, companyId]
+    );
+    return result.rows[0] as License | undefined;
   }
 
   async createLicense(license: InsertLicense): Promise<License> {
-    const [newLicense] = await db.insert(licenses).values(license).returning();
-    return newLicense;
+    const result = await pool.query(
+      `INSERT INTO licenses (
+        company_id, asset_id, name, vendor, license_key, license_type, max_users,
+        current_users, purchase_date, expiry_date, monthly_cost, annual_cost, status, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *`,
+      [
+        license.companyId, license.assetId, license.name, license.vendor, license.licenseKey,
+        license.licenseType, license.maxUsers, license.currentUsers, license.purchaseDate,
+        license.expiryDate, license.monthlyCost, license.annualCost, license.status, license.notes
+      ]
+    );
+    return result.rows[0] as License;
   }
 
   async updateLicense(id: string, license: Partial<InsertLicense>): Promise<License> {
-    const [updatedLicense] = await db
-      .update(licenses)
-      .set({ ...license, updatedAt: new Date() })
-      .where(eq(licenses.id, id))
-      .returning();
-    return updatedLicense;
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    Object.entries(license).forEach(([key, value]) => {
+      if (value !== undefined) {
+        const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        fields.push(`${snakeKey} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    });
+
+    fields.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const result = await pool.query(
+      `UPDATE licenses SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+    return result.rows[0] as License;
   }
 
   async deleteLicense(id: string, companyId: string): Promise<void> {
-    await db
-      .delete(licenses)
-      .where(and(eq(licenses.id, id), eq(licenses.companyId, companyId)));
+    await pool.query(
+      'DELETE FROM licenses WHERE id = $1 AND company_id = $2',
+      [id, companyId]
+    );
   }
 
-  // Maintenance operations
+  // ==========================================================================
+  // OPERACIONES DE MANTENIMIENTO
+  // ==========================================================================
+  
   async getMaintenanceRecordsByCompany(companyId: string): Promise<MaintenanceRecord[]> {
-    return await db
-      .select()
-      .from(maintenanceRecords)
-      .where(eq(maintenanceRecords.companyId, companyId))
-      .orderBy(desc(maintenanceRecords.createdAt));
+    const result = await pool.query(
+      'SELECT * FROM maintenance_records WHERE company_id = $1 ORDER BY created_at DESC',
+      [companyId]
+    );
+    return result.rows as MaintenanceRecord[];
   }
 
   async getMaintenanceRecordsByAsset(assetId: string, companyId: string): Promise<MaintenanceRecord[]> {
-    return await db
-      .select()
-      .from(maintenanceRecords)
-      .where(
-        and(
-          eq(maintenanceRecords.assetId, assetId),
-          eq(maintenanceRecords.companyId, companyId)
-        )
-      )
-      .orderBy(desc(maintenanceRecords.createdAt));
+    const result = await pool.query(
+      'SELECT * FROM maintenance_records WHERE asset_id = $1 AND company_id = $2 ORDER BY created_at DESC',
+      [assetId, companyId]
+    );
+    return result.rows as MaintenanceRecord[];
   }
 
   async createMaintenanceRecord(record: InsertMaintenanceRecord): Promise<MaintenanceRecord> {
-    const [newRecord] = await db.insert(maintenanceRecords).values(record).returning();
-    return newRecord;
+    const result = await pool.query(
+      `INSERT INTO maintenance_records (
+        asset_id, company_id, maintenance_type, title, description, vendor, cost,
+        scheduled_date, completed_date, next_maintenance_date, status, priority,
+        technician, parts_replaced, time_spent, notes, attachments
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      RETURNING *`,
+      [
+        record.assetId, record.companyId, record.maintenanceType, record.title,
+        record.description, record.vendor, record.cost, record.scheduledDate,
+        record.completedDate, record.nextMaintenanceDate, record.status, record.priority,
+        record.technician, record.partsReplaced, record.timeSpent, record.notes, record.attachments
+      ]
+    );
+    return result.rows[0] as MaintenanceRecord;
   }
 
   async updateMaintenanceRecord(id: string, record: Partial<InsertMaintenanceRecord>): Promise<MaintenanceRecord> {
-    const [updatedRecord] = await db
-      .update(maintenanceRecords)
-      .set({ ...record, updatedAt: new Date() })
-      .where(eq(maintenanceRecords.id, id))
-      .returning();
-    return updatedRecord;
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    Object.entries(record).forEach(([key, value]) => {
+      if (value !== undefined) {
+        const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        fields.push(`${snakeKey} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    });
+
+    fields.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const result = await pool.query(
+      `UPDATE maintenance_records SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+    return result.rows[0] as MaintenanceRecord;
   }
 
   // ==========================================================================
@@ -466,30 +634,7 @@ export class DatabaseStorage implements IStorage {
   // ==========================================================================
   
   /**
-   * MÉTODO CENTRAL DE ANÁLISIS DE COSTOS
-   * 
-   * Calcula el resumen completo de costos de una empresa agregando datos
-   * de múltiples fuentes: activos, licencias, contratos y mantenimiento.
-   * Este es uno de los métodos más importantes del sistema.
-   * 
-   * FUNCIONALIDAD:
-   * - Suma costos mensuales y anuales por categoría
-   * - Calcula promedio mensual de mantenimiento (últimos 12 meses)
-   * - Agrega datos de 4 tablas diferentes
-   * - Convierte tipos Decimal a Number para JavaScript
-   * 
-   * CATEGORÍAS DE COSTOS:
-   * - hardwareCosts: Activos físicos (laptops, servidores, etc.)
-   * - licenseCosts: Licencias de software (perpetuas y suscripciones)
-   * - contractCosts: Contratos con proveedores (soporte, mantenimiento)
-   * - maintenanceCosts: Promedio mensual de gastos de mantenimiento
-   * 
-   * OPTIMIZACIÓN:
-   * - 4 queries paralelos (uno por tabla) en lugar de un JOIN complejo
-   * - Usa agregaciones SQL (SUM) para mejor performance
-   * - Manejo seguro de valores NULL con operador || 0
-   * 
-   * USADO POR: Dashboard principal, reportes ejecutivos, gráficos de costos
+   * Calcula el resumen completo de costos de una empresa.
    */
   async getCompanyCostSummary(companyId: string): Promise<{
     monthlyTotal: number;
@@ -499,49 +644,32 @@ export class DatabaseStorage implements IStorage {
     hardwareCosts: number;
     contractCosts: number;
   }> {
-    // Consulta 1: Costos de activos físicos y aplicaciones
-    const assetCosts = await db
-      .select({
-        monthlySum: sum(assets.monthlyCost),
-        annualSum: sum(assets.annualCost),
-      })
-      .from(assets)
-      .where(eq(assets.companyId, companyId));
+    const result = await pool.query(
+      `SELECT 
+        COALESCE(SUM(a.monthly_cost), 0) as asset_monthly,
+        COALESCE(SUM(a.annual_cost), 0) as asset_annual,
+        COALESCE(SUM(l.monthly_cost), 0) as license_monthly,
+        COALESCE(SUM(l.annual_cost), 0) as license_annual,
+        COALESCE(SUM(c.monthly_cost), 0) as contract_monthly,
+        COALESCE(SUM(c.annual_cost), 0) as contract_annual,
+        COALESCE(SUM(m.cost), 0) as maintenance_total
+      FROM companies comp
+      LEFT JOIN assets a ON a.company_id = comp.id
+      LEFT JOIN licenses l ON l.company_id = comp.id
+      LEFT JOIN contracts c ON c.company_id = comp.id
+      LEFT JOIN maintenance_records m ON m.company_id = comp.id
+      WHERE comp.id = $1
+      GROUP BY comp.id`,
+      [companyId]
+    );
 
-    // Consulta 2: Costos de licencias de software
-    const licenseCosts = await db
-      .select({
-        monthlySum: sum(licenses.monthlyCost),
-        annualSum: sum(licenses.annualCost),
-      })
-      .from(licenses)
-      .where(eq(licenses.companyId, companyId));
+    const row = result.rows[0] || {};
+    const assetMonthly = Number(row.asset_monthly || 0);
+    const licenseMonthly = Number(row.license_monthly || 0);
+    const contractMonthly = Number(row.contract_monthly || 0);
+    const maintenanceTotal = Number(row.maintenance_total || 0);
+    const maintenanceMonthly = maintenanceTotal / 12;
 
-    // Consulta 3: Costos de contratos con proveedores
-    const contractCosts = await db
-      .select({
-        monthlySum: sum(contracts.monthlyCost),
-        annualSum: sum(contracts.annualCost),
-      })
-      .from(contracts)
-      .where(eq(contracts.companyId, companyId));
-
-    // Consulta 4: Costos de mantenimiento (histórico total)
-    const maintenanceCosts = await db
-      .select({
-        totalCost: sum(maintenanceRecords.cost),
-      })
-      .from(maintenanceRecords)
-      .where(eq(maintenanceRecords.companyId, companyId));
-
-    // Conversión segura de Decimal a Number y cálculos
-    const assetMonthly = Number(assetCosts[0]?.monthlySum || 0);
-    const licenseMonthly = Number(licenseCosts[0]?.monthlySum || 0);
-    const contractMonthly = Number(contractCosts[0]?.monthlySum || 0);
-    const maintenanceTotal = Number(maintenanceCosts[0]?.totalCost || 0);
-    const maintenanceMonthly = maintenanceTotal / 12; // Promedio mensual
-
-    // Cálculo de totales consolidados
     const monthlyTotal = assetMonthly + licenseMonthly + contractMonthly + maintenanceMonthly;
     const annualTotal = monthlyTotal * 12;
 
@@ -562,44 +690,32 @@ export class DatabaseStorage implements IStorage {
     licenses: number;
     contracts: number;
   }> {
-    const assetCounts = await db
-      .select({
-        type: assets.type,
-        count: count(),
-      })
-      .from(assets)
-      .where(eq(assets.companyId, companyId))
-      .groupBy(assets.type);
+    const result = await pool.query(
+      `SELECT 
+        COUNT(CASE WHEN a.type = 'physical' THEN 1 END) as physical_count,
+        COUNT(CASE WHEN a.type = 'application' THEN 1 END) as application_count,
+        COUNT(a.id) as total_assets,
+        (SELECT COUNT(*) FROM licenses WHERE company_id = $1) as license_count,
+        (SELECT COUNT(*) FROM contracts WHERE company_id = $1) as contract_count
+      FROM assets a
+      WHERE a.company_id = $1`,
+      [companyId]
+    );
 
-    const licenseCount = await db
-      .select({ count: count() })
-      .from(licenses)
-      .where(eq(licenses.companyId, companyId));
-
-    const contractCount = await db
-      .select({ count: count() })
-      .from(contracts)
-      .where(eq(contracts.companyId, companyId));
-
-    const counts = {
-      totalAssets: 0,
-      physicalAssets: 0,
-      applications: 0,
-      licenses: Number(licenseCount[0]?.count || 0),
-      contracts: Number(contractCount[0]?.count || 0),
+    const row = result.rows[0] || {};
+    return {
+      totalAssets: Number(row.total_assets || 0),
+      physicalAssets: Number(row.physical_count || 0),
+      applications: Number(row.application_count || 0),
+      licenses: Number(row.license_count || 0),
+      contracts: Number(row.contract_count || 0),
     };
-
-    assetCounts.forEach(({ type, count }) => {
-      const countNum = Number(count);
-      counts.totalAssets += countNum;
-      if (type === "physical") counts.physicalAssets += countNum;
-      if (type === "application") counts.applications += countNum;
-    });
-
-    return counts;
   }
 
-  // Activity log
+  // ==========================================================================
+  // ACTIVITY LOG
+  // ==========================================================================
+  
   async logActivity(activity: {
     companyId: string;
     userId: string;
@@ -609,87 +725,132 @@ export class DatabaseStorage implements IStorage {
     entityName?: string;
     details?: string;
   }): Promise<ActivityLog> {
-    const [log] = await db.insert(activityLog).values(activity).returning();
-    return log;
+    const result = await pool.query(
+      `INSERT INTO activity_log (company_id, user_id, action, entity_type, entity_id, entity_name, details)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        activity.companyId, activity.userId, activity.action, activity.entityType,
+        activity.entityId, activity.entityName, activity.details
+      ]
+    );
+    return result.rows[0] as ActivityLog;
   }
 
   async getRecentActivity(companyId: string, limit: number = 10): Promise<(ActivityLog & { user: User })[]> {
-    return await db
-      .select()
-      .from(activityLog)
-      .leftJoin(users, eq(activityLog.userId, users.id))
-      .where(eq(activityLog.companyId, companyId))
-      .orderBy(desc(activityLog.createdAt))
-      .limit(limit)
-      .then(rows => rows.map(row => ({
-        ...row.activity_log,
-        user: row.users!
-      })));
+    const result = await pool.query(
+      `SELECT 
+        al.*,
+        u.id as "user.id",
+        u.email as "user.email",
+        u.first_name as "user.first_name",
+        u.last_name as "user.last_name",
+        u.profile_image_url as "user.profile_image_url",
+        u.role as "user.role",
+        u.created_at as "user.created_at",
+        u.updated_at as "user.updated_at"
+      FROM activity_log al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE al.company_id = $1
+      ORDER BY al.created_at DESC
+      LIMIT $2`,
+      [companyId, limit]
+    );
+
+    return result.rows.map(row => ({
+      id: row.id,
+      companyId: row.company_id,
+      userId: row.user_id,
+      action: row.action,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      entityName: row.entity_name,
+      details: row.details,
+      createdAt: row.created_at,
+      user: {
+        id: row['user.id'],
+        email: row['user.email'],
+        passwordHash: '',
+        firstName: row['user.first_name'],
+        lastName: row['user.last_name'],
+        profileImageUrl: row['user.profile_image_url'],
+        role: row['user.role'],
+        createdAt: row['user.created_at'],
+        updatedAt: row['user.updated_at'],
+      }
+    }));
   }
 
-
-  // Admin operations
+  // ==========================================================================
+  // ADMIN OPERATIONS
+  // ==========================================================================
+  
   async getAllCompanies(): Promise<(Company & { userCount: number, assetCount: number })[]> {
-    const companiesWithStats = await db
-      .select({
-        id: companies.id,
-        name: companies.name,
-        description: companies.description,
-        plan: companies.plan,
-        maxUsers: companies.maxUsers,
-        maxAssets: companies.maxAssets,
-        isActive: companies.isActive,
-        ruc: companies.ruc,
-        cedula: companies.cedula,
-        address: companies.address,
-        phone: companies.phone,
-        email: companies.email,
-        createdAt: companies.createdAt,
-        updatedAt: companies.updatedAt,
-        userCount: count(userCompanies.id),
-        assetCount: count(assets.id),
-      })
-      .from(companies)
-      .leftJoin(userCompanies, eq(companies.id, userCompanies.companyId))
-      .leftJoin(assets, eq(companies.id, assets.companyId))
-      .groupBy(companies.id)
-      .orderBy(companies.createdAt);
+    const result = await pool.query(
+      `SELECT 
+        c.*,
+        COUNT(DISTINCT uc.id) as user_count,
+        COUNT(DISTINCT a.id) as asset_count
+      FROM companies c
+      LEFT JOIN user_companies uc ON c.id = uc.company_id
+      LEFT JOIN assets a ON c.id = a.company_id
+      GROUP BY c.id
+      ORDER BY c.created_at DESC`
+    );
 
-    return companiesWithStats.map(company => ({
-      ...company,
-      userCount: Number(company.userCount || 0),
-      assetCount: Number(company.assetCount || 0),
+    return result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      plan: row.plan,
+      maxUsers: row.max_users,
+      maxAssets: row.max_assets,
+      isActive: row.is_active,
+      ruc: row.ruc,
+      cedula: row.cedula,
+      address: row.address,
+      phone: row.phone,
+      email: row.email,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      userCount: Number(row.user_count || 0),
+      assetCount: Number(row.asset_count || 0),
     }));
   }
 
   async updateCompanyPlan(companyId: string, plan: "pyme" | "professional", maxUsers?: number, maxAssets?: number): Promise<Company> {
-    const updateData: any = { plan };
+    let finalMaxUsers = maxUsers;
+    let finalMaxAssets = maxAssets;
     
     if (plan === "pyme") {
-      updateData.maxUsers = maxUsers || 10;
-      updateData.maxAssets = maxAssets || 500;
+      finalMaxUsers = maxUsers || 10;
+      finalMaxAssets = maxAssets || 500;
     } else if (plan === "professional") {
-      updateData.maxUsers = 1;
-      updateData.maxAssets = 100;
+      finalMaxUsers = 1;
+      finalMaxAssets = 100;
     }
+
+    const result = await pool.query(
+      `UPDATE companies 
+       SET plan = $1, max_users = $2, max_assets = $3, updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [plan, finalMaxUsers, finalMaxAssets, companyId]
+    );
     
-    const [updatedCompany] = await db
-      .update(companies)
-      .set(updateData)
-      .where(eq(companies.id, companyId))
-      .returning();
-    
-    return updatedCompany;
+    return result.rows[0] as Company;
   }
 
   async toggleCompanyStatus(companyId: string, isActive: boolean): Promise<Company> {
-    const [updatedCompany] = await db
-      .update(companies)
-      .set({ isActive })
-      .where(eq(companies.id, companyId))
-      .returning();
+    const result = await pool.query(
+      `UPDATE companies 
+       SET is_active = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [isActive, companyId]
+    );
     
-    return updatedCompany;
+    return result.rows[0] as Company;
   }
 }
 
