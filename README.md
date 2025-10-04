@@ -26,7 +26,7 @@ Sistema integral de gestión de activos TI para pequeñas y medianas empresas (P
 ### Backend
 - Node.js con Express
 - TypeScript
-- Autenticación con Replit OIDC
+- Autenticación Email/Password con bcrypt
 - Sesiones con PostgreSQL
 
 ### Base de Datos
@@ -38,7 +38,6 @@ Sistema integral de gestión de activos TI para pequeñas y medianas empresas (P
 
 - Node.js 18 o superior
 - PostgreSQL 14 o superior
-- Cuenta en Replit (para autenticación)
 - Base de datos Neon (recomendado) o PostgreSQL local
 
 ## 🚀 Instalación y Configuración
@@ -69,11 +68,12 @@ PGUSER="usuario"
 PGPASSWORD="contraseña"
 PGDATABASE="nombre_base_datos"
 
-# Autenticación Replit
-REPL_ID="tu-repl-id"
-ISSUER_URL="https://replit.com/oidc"
+# Autenticación
 SESSION_SECRET="clave-secreta-muy-segura-de-al-menos-32-caracteres"
-REPLIT_DOMAINS="tu-dominio.replit.app,dominio-personalizado.com"
+
+# Servidor (opcional)
+PORT=5000
+NODE_ENV=development
 ```
 
 ### 4. Configurar Base de Datos
@@ -95,17 +95,37 @@ CREATE USER techassets_user WITH PASSWORD 'tu_contraseña_segura';
 GRANT ALL PRIVILEGES ON DATABASE techassets_pro TO techassets_user;
 ```
 
-### 5. Ejecutar Migraciones
+#### Opción C: Usar script SQL incluido
+
+El proyecto incluye un script SQL completo (`schema.sql`) que crea todas las tablas necesarias:
+
+```bash
+psql -U techassets_user -d techassets_pro -f schema.sql
+```
+
+### 5. Sincronizar Schema de Base de Datos
 
 ```bash
 npm run db:push
 ```
 
-### 6. Configurar Autenticación Replit
+### 6. Crear Usuario Administrador (Opcional)
 
-1. Ir a tu Repl en Replit
-2. Configurar las variables de entorno en Secrets
-3. Asegurar que `REPLIT_DOMAINS` incluya todos los dominios donde se ejecutará la app
+Para crear un usuario super admin, puedes registrarte desde la interfaz web en `/register` o ejecutar:
+
+```javascript
+// Usar bcrypt para generar el hash del password
+const bcrypt = require('bcrypt');
+const password = 'TuContraseñaSegura';
+bcrypt.hash(password, 10).then(hash => console.log(hash));
+```
+
+Luego insertar en la base de datos:
+
+```sql
+INSERT INTO users (email, password_hash, first_name, last_name, role)
+VALUES ('admin@tuempresa.com', 'hash-generado', 'Admin', 'Sistema', 'super_admin');
+```
 
 ## 🏃‍♂️ Ejecutar en Desarrollo
 
@@ -123,28 +143,22 @@ npm run build
 
 ## 🚀 Despliegue en Producción
 
-### Despliegue en Replit (Recomendado)
+El proyecto incluye documentación completa de deployment en `DEPLOYMENT.md` para servidores AlmaLinux.
 
-1. **Preparar el Proyecto**:
-   ```bash
-   git add .
-   git commit -m "Preparar para producción"
-   git push
-   ```
+### Despliegue en Servidor AlmaLinux (Recomendado para Producción)
 
-2. **Configurar Variables de Entorno en Replit**:
-   - Ir a Secrets en tu Repl
-   - Agregar todas las variables del archivo `.env`
+Ver la guía completa en [DEPLOYMENT.md](./DEPLOYMENT.md) que incluye:
 
-3. **Configurar Base de Datos**:
-   - Crear base de datos en Neon
-   - Ejecutar migraciones: `npm run db:push`
+- Preparación del servidor y dependencias
+- Configuración de PostgreSQL
+- Deployment de backend con PM2
+- Build y configuración de frontend
+- Configuración de Nginx como reverse proxy
+- Setup de SSL/HTTPS con Let's Encrypt
+- Servicios systemd para auto-inicio
+- Procedimientos de mantenimiento
 
-4. **Desplegar**:
-   - La aplicación se desplegará automáticamente en Replit
-   - Usar Replit Deployments para producción estable
-
-### Despliegue en Servidor VPS
+### Despliegue Rápido en Otros VPS
 
 #### 1. Preparar el Servidor
 
@@ -409,9 +423,9 @@ sudo ufw enable
 
 ### Error de Autenticación
 
-1. Verificar configuración de Replit OIDC
-2. Confirmar que `REPLIT_DOMAINS` sea correcto
-3. Verificar que `SESSION_SECRET` esté configurado
+1. Verificar que SESSION_SECRET esté configurado en producción
+2. Verificar conexión a la base de datos (DATABASE_URL)
+3. Confirmar que el hash de password sea válido (bcrypt con 10 rounds)
 
 ### Problemas de Rendimiento
 

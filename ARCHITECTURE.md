@@ -33,11 +33,12 @@ TechAssets Pro es una aplicación web integral para la gestión de activos IT di
 - **Validation**: Schemas Zod para validación de tipos en tiempo de ejecución
 
 #### Autenticación y Autorización
-- **Provider**: Integración Replit OIDC (OpenID Connect)
-- **Session Management**: Sesiones Express con almacén de sesiones PostgreSQL
-- **Strategy**: Passport.js con estrategia OpenID Connect
+- **Provider**: Autenticación Email/Password (independiente de plataforma)
+- **Password Security**: Bcrypt con 10 salt rounds para hashing seguro
+- **Session Management**: Express sessions con almacén PostgreSQL (connect-pg-simple)
 - **User Management**: Control de acceso basado en roles con permisos por empresa
-- **Roles**: Super Admin, Technical Admin, Manager/Owner, Technician
+- **Roles**: Super Admin, Technical Admin, Manager/Owner
+- **Session Secret**: Configurable vía variable de entorno SESSION_SECRET
 
 ## Modelo de Base de Datos
 
@@ -69,9 +70,10 @@ El sistema utiliza una arquitectura multi-tenant con las siguientes entidades pr
 ```typescript
 // Interfaz que define todas las operaciones de datos
 interface IStorage {
-  // Operaciones de usuario (requeridas para Replit Auth)
+  // Operaciones de usuario
   getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(userData: CreateUser): Promise<User>;
   
   // Operaciones de empresa
   getUserCompanies(userId: string): Promise<(UserCompany & { company: Company })[]>;
@@ -94,7 +96,7 @@ class DatabaseStorage implements IStorage {
 
 #### Autenticación
 - `GET /api/auth/user` - Perfil del usuario actual
-- `POST /api/login` - Inicio de sesión OIDC  
+- `POST /api/login` - Inicio de sesión con email/password  
 - `POST /api/logout` - Cierre de sesión
 
 #### Gestión de Empresas
@@ -221,7 +223,7 @@ const createAsset = useMutation({
 ## Seguridad
 
 ### Autenticación
-- Replit OIDC para autenticación segura
+- Autenticación Email/Password con bcrypt para seguridad
 - Tokens JWT con refresh automático
 - Sesiones persistentes en PostgreSQL
 - Logout completo con limpieza de sesiones
@@ -247,7 +249,7 @@ const createAsset = useMutation({
 ## Deployment
 
 ### Entorno de Desarrollo
-- Replit como plataforma de desarrollo integrada
+- Compatible con cualquier plataforma de desarrollo y deployment
 - Hot Module Replacement (HMR) con Vite
 - Base de datos PostgreSQL en Neon Database
 - Variables de entorno para configuración
