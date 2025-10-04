@@ -224,7 +224,15 @@ export default function Header({ title, subtitle, selectedCompanyId }: HeaderPro
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => window.location.href = '/api/logout'} data-testid="button-logout">
+              <DropdownMenuItem onClick={async () => {
+                try {
+                  await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+                  window.location.href = '/login';
+                } catch (error) {
+                  console.error('Error logging out:', error);
+                  window.location.href = '/login';
+                }
+              }} data-testid="button-logout">
                 <LogOut className="w-4 h-4 mr-2" />
                 Cerrar Sesión
               </DropdownMenuItem>

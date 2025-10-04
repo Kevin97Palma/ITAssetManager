@@ -46,6 +46,24 @@ import {
 import { pool } from "./db";
 
 /**
+ * Helper function to convert snake_case database columns to camelCase
+ */
+function mapUserFromDb(row: any): User | undefined {
+  if (!row) return undefined;
+  return {
+    id: row.id,
+    email: row.email,
+    passwordHash: row.password_hash,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    profileImageUrl: row.profile_image_url,
+    role: row.role,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
  * INTERFAZ PRINCIPAL DEL STORAGE
  * 
  * Define todos los métodos disponibles para interactuar con la base de datos.
@@ -172,7 +190,7 @@ export class DatabaseStorage implements IStorage {
       'SELECT * FROM users WHERE id = $1',
       [id]
     );
-    return result.rows[0] as User | undefined;
+    return mapUserFromDb(result.rows[0]);
   }
 
   /**
@@ -183,7 +201,7 @@ export class DatabaseStorage implements IStorage {
       'SELECT * FROM users WHERE email = $1',
       [email]
     );
-    return result.rows[0] as User | undefined;
+    return mapUserFromDb(result.rows[0]);
   }
 
   /**
@@ -202,7 +220,7 @@ export class DatabaseStorage implements IStorage {
        RETURNING *`,
       [email, passwordHash, firstName, lastName, role]
     );
-    return result.rows[0] as User;
+    return mapUserFromDb(result.rows[0])!;
   }
 
   // ==========================================================================
