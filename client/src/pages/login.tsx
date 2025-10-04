@@ -3,6 +3,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +17,13 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function Login() {
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      window.location.href = "/";
+    }
+  }, [isAuthenticated]);
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -26,7 +35,7 @@ export default function Login() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginForm) => {
-      return await apiRequest("/api/login", "POST", data);
+      return await apiRequest("POST", "/api/login", data);
     },
     onSuccess: () => {
       toast({

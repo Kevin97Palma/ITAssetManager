@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,13 @@ import { companyRegistrationSchema, type CompanyRegistration } from "@shared/sch
 export default function Register() {
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<"pyme" | "professional">("pyme");
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      window.location.href = "/";
+    }
+  }, [isAuthenticated]);
 
   const form = useForm<CompanyRegistration>({
     resolver: zodResolver(companyRegistrationSchema),
@@ -26,7 +34,7 @@ export default function Register() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: CompanyRegistration) => {
-      return await apiRequest("/api/register", "POST", data);
+      return await apiRequest("POST", "/api/register", data);
     },
     onSuccess: () => {
       toast({

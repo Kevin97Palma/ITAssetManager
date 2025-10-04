@@ -25,11 +25,12 @@ Preferred communication style: Simple, everyday language.
 - **File Structure**: Monorepo approach with shared schemas between client and server
 
 ## Authentication & Authorization
-- **Provider**: Replit OIDC (OpenID Connect) integration
-- **Session Management**: Express sessions with PostgreSQL session store
-- **Strategy**: Passport.js with OpenID Connect strategy
+- **Provider**: Email/Password authentication (independent of Replit)
+- **Password Security**: bcrypt hashing with 10 salt rounds
+- **Session Management**: Express sessions with PostgreSQL session store (connect-pg-simple)
 - **User Management**: Role-based access control with company-scoped permissions
 - **Roles**: Super Admin, Technical Admin, Manager/Owner
+- **Session Secret**: Configurable via SESSION_SECRET environment variable (required for production)
 
 ## Data Layer
 - **Database**: PostgreSQL with Neon Database serverless connector
@@ -59,10 +60,6 @@ The system uses a multi-tenant architecture with the following core entities:
 ## Database Services
 - **Neon Database**: Serverless PostgreSQL hosting with connection pooling
 - **WebSocket Support**: Real-time database connections using ws library
-
-## Authentication Services
-- **Replit OIDC**: Identity provider for user authentication
-- **OpenID Connect**: Standard protocol for secure authentication flows
 
 ## UI and Component Libraries
 - **Radix UI**: Headless UI primitives for accessibility and behavior

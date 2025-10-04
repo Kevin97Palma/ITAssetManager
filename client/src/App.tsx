@@ -23,11 +23,13 @@ function Router() {
 
   return (
     <Switch>
+      {/* Public routes (always available) */}
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
+      
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
-          <Route path="/register" component={Register} />
-          <Route path="/login" component={Login} />
         </>
       ) : (
         <>
