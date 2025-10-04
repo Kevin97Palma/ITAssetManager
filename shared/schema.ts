@@ -14,7 +14,7 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Session storage table (required for Replit Auth)
+// Session storage table (for express-session)
 export const sessions = pgTable(
   "sessions",
   {
@@ -370,7 +370,7 @@ export const companyRegistrationSchema = z.object({
   }
 }, {
   message: "RUC es requerido para empresas PyME, Cédula es requerida para profesionales",
-  path: data => data.plan === "pyme" ? ["ruc"] : ["cedula"]
+  path: ["ruc"]
 });
 
 // Login schema
