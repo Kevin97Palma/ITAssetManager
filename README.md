@@ -31,7 +31,7 @@ Sistema integral de gestión de activos TI para pequeñas y medianas empresas (P
 
 ### Base de Datos
 - PostgreSQL 15
-- Drizzle ORM para manejo de datos
+- Queries SQL nativas para manejo de datos
 - Esquemas con validación Zod
 
 ## 📋 Requisitos Previos
@@ -100,17 +100,58 @@ GRANT ALL PRIVILEGES ON DATABASE techassets_pro TO techassets_user;
 
 #### Aplicar el schema:
 
-El proyecto incluye un script SQL completo (`schema.sql`) que crea todas las tablas:
+El proyecto incluye un script SQL completo (`schema.sql`) que crea todas las tablas, índices y constraints necesarios:
 
 ```bash
+# Aplicar el schema completo
 psql -U techassets_user -d techassets_pro -f schema.sql
+
+# Verificar que las tablas se crearon correctamente
+psql -U techassets_user -d techassets_pro -c "\dt"
 ```
 
-O usar Drizzle para sincronizar:
+**Importante:** El script `schema.sql` incluye:
+- Creación de tipos ENUM (roles, estados, planes)
+- Tabla de sesiones para express-session
+- Todas las tablas del sistema con constraints y foreign keys
+- Índices optimizados para búsquedas rápidas
+- Comentarios de documentación
+
+#### Script de Creación Manual de Base de Datos
+
+Para crear la base de datos completamente desde cero en AlmaLinux, sigue estos pasos:
 
 ```bash
-npm run db:push
+# 1. Instalar PostgreSQL 15
+sudo dnf install -y postgresql15-server postgresql15-contrib
+
+# 2. Inicializar el cluster de base de datos
+sudo postgresql-setup --initdb
+
+# 3. Iniciar y habilitar el servicio
+sudo systemctl enable --now postgresql
+
+# 4. Crear base de datos y usuario
+sudo -u postgres psql << EOF
+CREATE DATABASE techassets_pro;
+CREATE USER techassets_user WITH PASSWORD 'contraseña_segura_aquí';
+GRANT ALL PRIVILEGES ON DATABASE techassets_pro TO techassets_user;
+\q
+EOF
+
+# 5. Aplicar el schema completo
+psql -U techassets_user -d techassets_pro -f schema.sql
+
+# 6. Verificar instalación
+psql -U techassets_user -d techassets_pro -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public';"
 ```
+
+El archivo `schema.sql` contiene la definición completa de:
+- 8 tablas principales (users, companies, assets, contracts, licenses, maintenance_records, activity_log, sessions)
+- 8 tipos ENUM personalizados
+- 20+ índices para optimización de queries
+- Constraints y foreign keys para integridad referencial
+- Comentarios y documentación integrada
 
 ### 5. Crear Usuario Administrador (Opcional)
 
@@ -207,8 +248,8 @@ npm ci --only=production
 sudo nano .env
 # (Agregar todas las variables necesarias)
 
-# Ejecutar migraciones
-npm run db:push
+# Aplicar schema de base de datos
+psql -U techassets_user -d techassets_pro -f schema.sql
 
 # Compilar aplicación
 npm run build
