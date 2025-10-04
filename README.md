@@ -30,7 +30,7 @@ Sistema integral de gestión de activos TI para pequeñas y medianas empresas (P
 - Sesiones con PostgreSQL
 
 ### Base de Datos
-- PostgreSQL con Neon Database
+- PostgreSQL 15
 - Drizzle ORM para manejo de datos
 - Esquemas con validación Zod
 
@@ -38,7 +38,6 @@ Sistema integral de gestión de activos TI para pequeñas y medianas empresas (P
 
 - Node.js 18 o superior
 - PostgreSQL 14 o superior
-- Base de datos Neon (recomendado) o PostgreSQL local
 
 ## 🚀 Instalación y Configuración
 
@@ -76,40 +75,44 @@ PORT=5000
 NODE_ENV=development
 ```
 
-### 4. Configurar Base de Datos
+### 4. Configurar PostgreSQL
 
-#### Opción A: Usando Neon Database (Recomendado)
+#### Instalar PostgreSQL en AlmaLinux:
 
-1. Crear cuenta en [Neon](https://neon.tech)
-2. Crear nuevo proyecto
-3. Copiar la connection string al archivo `.env`
+```bash
+sudo dnf install -y postgresql15-server postgresql15-contrib
+sudo postgresql-setup --initdb
+sudo systemctl enable --now postgresql
+```
 
-#### Opción B: PostgreSQL Local
+#### Crear base de datos:
 
-1. Instalar PostgreSQL
-2. Crear base de datos:
+```bash
+# Cambiar a usuario postgres
+sudo -u postgres psql
 
-```sql
+# Crear base de datos y usuario
 CREATE DATABASE techassets_pro;
 CREATE USER techassets_user WITH PASSWORD 'tu_contraseña_segura';
 GRANT ALL PRIVILEGES ON DATABASE techassets_pro TO techassets_user;
+\q
 ```
 
-#### Opción C: Usar script SQL incluido
+#### Aplicar el schema:
 
-El proyecto incluye un script SQL completo (`schema.sql`) que crea todas las tablas necesarias:
+El proyecto incluye un script SQL completo (`schema.sql`) que crea todas las tablas:
 
 ```bash
 psql -U techassets_user -d techassets_pro -f schema.sql
 ```
 
-### 5. Sincronizar Schema de Base de Datos
+O usar Drizzle para sincronizar:
 
 ```bash
 npm run db:push
 ```
 
-### 6. Crear Usuario Administrador (Opcional)
+### 5. Crear Usuario Administrador (Opcional)
 
 Para crear un usuario super admin, puedes registrarte desde la interfaz web en `/register` o ejecutar:
 

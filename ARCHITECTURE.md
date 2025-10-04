@@ -26,7 +26,7 @@ TechAssets Pro es una aplicación web integral para la gestión de activos IT di
 - **File Structure**: Monorepo con schemas compartidos entre cliente y servidor
 
 #### Base de Datos
-- **Database**: PostgreSQL con conector serverless Neon Database
+- **Database**: PostgreSQL 15
 - **ORM**: Drizzle ORM para operaciones type-safe
 - **Schema**: Definiciones de schema centralizadas en directorio compartido
 - **Migrations**: Drizzle Kit para manejo de schema de base de datos
@@ -251,7 +251,7 @@ const createAsset = useMutation({
 ### Entorno de Desarrollo
 - Compatible con cualquier plataforma de desarrollo y deployment
 - Hot Module Replacement (HMR) con Vite
-- Base de datos PostgreSQL en Neon Database
+- Base de datos PostgreSQL local o remoto
 - Variables de entorno para configuración
 
 ### Preparado para Producción

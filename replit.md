@@ -33,7 +33,7 @@ Preferred communication style: Simple, everyday language.
 - **Session Secret**: Configurable via SESSION_SECRET environment variable (required for production)
 
 ## Data Layer
-- **Database**: PostgreSQL with Neon Database serverless connector
+- **Database**: PostgreSQL 15
 - **ORM**: Drizzle ORM for type-safe database operations
 - **Schema**: Centralized schema definitions in shared directory
 - **Migrations**: Drizzle Kit for database schema management
@@ -58,8 +58,8 @@ The system uses a multi-tenant architecture with the following core entities:
 # External Dependencies
 
 ## Database Services
-- **Neon Database**: Serverless PostgreSQL hosting with connection pooling
-- **WebSocket Support**: Real-time database connections using ws library
+- **PostgreSQL**: Local or remote PostgreSQL 15 server
+- **Connection Pooling**: Built-in with Drizzle ORM
 
 ## UI and Component Libraries
 - **Radix UI**: Headless UI primitives for accessibility and behavior
