@@ -26,7 +26,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupSession, isAuthenticated, passwordUtils } from "./auth";
 import {
   insertAssetSchema,
   insertContractSchema,
@@ -35,6 +35,7 @@ import {
   insertCompanySchema,
   insertNotificationSchema,
   companyRegistrationSchema,
+  loginSchema,
 } from "@shared/schema";
 
 /**
@@ -47,22 +48,54 @@ import {
  * @returns Servidor HTTP listo para iniciar
  */
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Configurar middleware de autenticación Replit OIDC
-  await setupAuth(app);
+  // Configurar middleware de sesiones
+  setupSession(app);
 
-  // Registration route (public - no authentication required)
+  // =============================================================================
+  // RUTAS PÚBLICAS (sin autenticación)
+  // =============================================================================
+  
+  /**
+   * POST /api/register
+   * Registra una nueva empresa con su usuario administrador.
+   * NO requiere autenticación (ruta pública)
+   */
   app.post('/api/register', async (req: any, res) => {
     try {
       const registrationData = companyRegistrationSchema.parse(req.body);
-      const result = await storage.registerCompany(registrationData);
+      
+      // Hash the password before storing
+      const passwordHash = await passwordUtils.hash(registrationData.password);
+      
+      // Register company with hashed password
+      const result = await storage.registerCompany({
+        ...registrationData,
+        passwordHash,
+      });
+      
+      // Automatically log in the user after registration
+      req.session.userId = result.user.id;
+      req.session.email = result.user.email;
+      req.session.firstName = result.user.firstName;
+      req.session.lastName = result.user.lastName;
+      req.session.role = result.user.role;
+      
       res.json({
         message: "Empresa registrada exitosamente",
         company: result.company,
-        user: result.user,
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          firstName: result.user.firstName,
+          lastName: result.user.lastName,
+          role: result.user.role,
+        },
       });
     } catch (error: any) {
       console.error("Error registering company:", error);
-      if (error.code === '23505') { // Unique constraint violation
+      if (error.message === "El email ya está registrado") {
+        res.status(400).json({ message: error.message });
+      } else if (error.code === '23505') {
         res.status(400).json({ 
           message: "Ya existe una empresa con este RUC/Cédula o email" 
         });
@@ -70,6 +103,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(500).json({ message: "Error al registrar empresa" });
       }
     }
+  });
+
+  /**
+   * POST /api/login
+   * Inicia sesión con email y contraseña.
+   * NO requiere autenticación (ruta pública)
+   */
+  app.post('/api/login', async (req: any, res) => {
+    try {
+      const { email, password } = loginSchema.parse(req.body);
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ message: "Email o contraseña incorrectos" });
+      }
+      
+      // Verify password
+      const isValidPassword = await passwordUtils.verify(password, user.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Email o contraseña incorrectos" });
+      }
+      
+      // Create session
+      req.session.userId = user.id;
+      req.session.email = user.email;
+      req.session.firstName = user.firstName;
+      req.session.lastName = user.lastName;
+      req.session.role = user.role;
+      
+      res.json({
+        message: "Login exitoso",
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error during login:", error);
+      res.status(500).json({ message: "Error al iniciar sesión" });
+    }
+  });
+
+  /**
+   * POST /api/logout
+   * Cierra la sesión del usuario.
+   */
+  app.post('/api/logout', (req: any, res) => {
+    req.session.destroy((err: any) => {
+      if (err) {
+        return res.status(500).json({ message: "Error al cerrar sesión" });
+      }
+      res.json({ message: "Sesión cerrada exitosamente" });
+    });
   });
 
   // =============================================================================
@@ -81,7 +171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * Obtiene la información del usuario autenticado actual.
    * 
    * FUNCIONALIDAD:
-   * - Extrae el ID de usuario desde el token JWT (req.user.claims.sub)
+   * - Extrae el ID de usuario desde la sesión (req.session.userId)
    * - Consulta los datos completos del usuario en la base de datos
    * - Retorna el perfil del usuario con rol y metadatos
    * 
@@ -90,9 +180,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
    */
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
-      res.json(user);
+      if (!user) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+      // Don't send password hash to frontend
+      const { passwordHash, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -117,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    */
   app.get('/api/companies', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const userCompanies = await storage.getUserCompanies(userId);
       res.json(userCompanies);
     } catch (error) {
@@ -142,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    */
   app.post('/api/companies', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedData = insertCompanySchema.parse(req.body);
       
       const company = await storage.createCompany(validatedData);
@@ -255,7 +350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/assets', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedData = insertAssetSchema.parse(req.body);
       
       const asset = await storage.createAsset(validatedData);
@@ -279,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/assets/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedData = insertAssetSchema.partial().parse(req.body);
       
       const asset = await storage.updateAsset(id, validatedData);
@@ -303,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/assets/:id/:companyId', isAuthenticated, async (req: any, res) => {
     try {
       const { id, companyId } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       
       const asset = await storage.getAssetById(id, companyId);
       if (!asset) {
@@ -342,7 +437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/contracts', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedData = insertContractSchema.parse(req.body);
       
       const contract = await storage.createContract(validatedData);
@@ -377,7 +472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/licenses', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedData = insertLicenseSchema.parse(req.body);
       
       const license = await storage.createLicense(validatedData);
@@ -423,7 +518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/maintenance', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedData = insertMaintenanceRecordSchema.parse(req.body);
       
       const record = await storage.createMaintenanceRecord(validatedData);
@@ -459,7 +554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Notification routes
   app.get('/api/notifications/:companyId', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const { companyId } = req.params;
       const notifications = await storage.getNotificationsByUser(userId, companyId);
       res.json(notifications);
@@ -471,7 +566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/notifications/unread-count/:companyId', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const { companyId } = req.params;
       const count = await storage.getUnreadNotificationCount(userId, companyId);
       res.json({ count });
@@ -483,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/notifications/:id/mark-read', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const { id } = req.params;
       await storage.markNotificationAsRead(id, userId);
       res.json({ success: true });
@@ -507,7 +602,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin routes (Super Admin only)
   app.get('/api/admin/companies', isAuthenticated, async (req: any, res) => {
     try {
-      const user = await storage.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.session.userId);
       if (user?.role !== 'super_admin') {
         return res.status(403).json({ message: "Access denied. Super admin required." });
       }
@@ -522,7 +617,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/admin/companies/:companyId/plan', isAuthenticated, async (req: any, res) => {
     try {
-      const user = await storage.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.session.userId);
       if (user?.role !== 'super_admin') {
         return res.status(403).json({ message: "Access denied. Super admin required." });
       }
@@ -544,7 +639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/admin/companies/:companyId/status', isAuthenticated, async (req: any, res) => {
     try {
-      const user = await storage.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.session.userId);
       if (user?.role !== 'super_admin') {
         return res.status(403).json({ message: "Access denied. Super admin required." });
       }
@@ -563,7 +658,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Super Admin - Support Mode Routes
   app.post('/api/admin/support-access/:companyId', isAuthenticated, async (req: any, res) => {
     try {
-      const user = await storage.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.session.userId);
       if (user?.role !== 'super_admin') {
         return res.status(403).json({ message: "Access denied. Super admin required." });
       }
@@ -605,7 +700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/exit-support', isAuthenticated, async (req: any, res) => {
     try {
-      const user = await storage.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.session.userId);
       if (user?.role !== 'super_admin') {
         return res.status(403).json({ message: "Access denied. Super admin required." });
       }
@@ -635,7 +730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/admin/support-status', isAuthenticated, async (req: any, res) => {
     try {
-      const user = await storage.getUser(req.user.claims.sub);
+      const user = await storage.getUser(req.session.userId);
       if (user?.role !== 'super_admin') {
         return res.status(403).json({ message: "Access denied. Super admin required." });
       }
