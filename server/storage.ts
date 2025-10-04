@@ -73,9 +73,10 @@ import { eq, and, desc, sum, count } from "drizzle-orm";
  * - Admin operations: Funciones exclusivas para super administrators
  */
 export interface IStorage {
-  // User operations (required for Replit Auth)
+  // User operations (authentication)
   getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(email: string, passwordHash: string, firstName: string, lastName: string, role?: "super_admin" | "technical_admin" | "manager_owner"): Promise<User>;
   
   // Company operations
   getUserCompanies(userId: string): Promise<(UserCompany & { company: Company })[]>;
@@ -170,13 +171,12 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   
   // ==========================================================================
-  // OPERACIONES DE USUARIO (REQUERIDAS PARA REPLIT AUTH)
+  // OPERACIONES DE USUARIO (AUTENTICACIÓN)
   // ==========================================================================
   
   /**
    * Obtiene un usuario por su ID único.
    * 
-   * REQUERIDO POR: Sistema de autenticación Replit OIDC
    * USADO EN: Verificación de permisos, sesiones, perfil de usuario
    * PERFORMANCE: Query directo por primary key, muy rápido
    */
@@ -186,26 +186,41 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Crea un nuevo usuario o actualiza uno existente (upsert).
+   * Obtiene un usuario por su email.
+   * 
+   * USADO EN: Login, verificación de email único durante registro
+   * PERFORMANCE: Index en email column para búsqueda rápida
+   */
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  /**
+   * Crea un nuevo usuario con password hash.
    * 
    * FUNCIONALIDAD:
-   * - Insert si el usuario no existe
-   * - Update si ya existe (actualiza updatedAt automáticamente)
-   * - Maneja conflictos por ID de forma segura
+   * - Crea usuario con contraseña hasheada con bcrypt
+   * - Valida que el email no exista previamente
+   * - Asigna rol por defecto o rol especificado
    * 
-   * REQUERIDO POR: Primera autenticación de usuarios via Replit OIDC
-   * USADO EN: Login, registro automático, sincronización de perfil
+   * USADO EN: Registro de nuevos usuarios, creación de usuarios por admin
    */
-  async upsertUser(userData: UpsertUser): Promise<User> {
+  async createUser(
+    email: string, 
+    passwordHash: string, 
+    firstName: string, 
+    lastName: string, 
+    role: "super_admin" | "technical_admin" | "manager_owner" = "technical_admin"
+  ): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
+      .values({
+        email,
+        passwordHash,
+        firstName,
+        lastName,
+        role,
       })
       .returning();
     return user;
@@ -255,24 +270,30 @@ export class DatabaseStorage implements IStorage {
    * Registra una nueva empresa con su usuario propietario.
    * 
    * FUNCIONALIDAD:
-   * - Crea el usuario propietario de la empresa
+   * - Crea el usuario propietario con contraseña hasheada
    * - Crea la empresa con los datos de registro
    * - Establece la relación usuario-empresa con rol manager_owner
    * - Maneja transacción para consistencia de datos
+   * 
+   * NOTA: El password debe venir ya hasheado desde el endpoint
    */
-  async registerCompany(companyData: CompanyRegistration): Promise<{ company: Company; user: User }> {
-    // First create or update the user
-    const userData = {
-      id: crypto.randomUUID(), // Generate new ID
-      email: companyData.email,
-      firstName: companyData.firstName,
-      lastName: companyData.lastName,
-      role: "manager_owner" as const,
-    };
+  async registerCompany(companyData: CompanyRegistration & { passwordHash: string }): Promise<{ company: Company; user: User }> {
+    // Verificar si el email ya existe
+    const existingUser = await this.getUserByEmail(companyData.email);
+    if (existingUser) {
+      throw new Error("El email ya está registrado");
+    }
     
-    const user = await this.upsertUser(userData);
+    // Crear el usuario con password
+    const user = await this.createUser(
+      companyData.email,
+      companyData.passwordHash,
+      companyData.firstName,
+      companyData.lastName,
+      "manager_owner"
+    );
     
-    // Then create the company
+    // Crear la empresa
     const [company] = await db
       .insert(companies)
       .values({
@@ -288,7 +309,7 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
       
-    // Create user-company relationship
+    // Crear relación usuario-empresa
     await db
       .insert(userCompanies)
       .values({
