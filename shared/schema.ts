@@ -78,12 +78,13 @@ export const companyPlanEnum = pgEnum("company_plan", [
   "professional"
 ]);
 
-// Users table (required for Replit Auth)
+// Users table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
+  email: varchar("email").unique().notNull(),
+  passwordHash: varchar("password_hash").notNull(), // Hash bcrypt de la contraseña
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
   profileImageUrl: varchar("profile_image_url"),
   role: userRoleEnum("role").notNull().default("technical_admin"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -356,6 +357,11 @@ export const companyRegistrationSchema = z.object({
   // User info
   firstName: z.string().min(1, "Nombre es requerido"),
   lastName: z.string().min(1, "Apellido es requerido"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Las contraseñas no coinciden",
+  path: ["confirmPassword"]
 }).refine((data) => {
   if (data.plan === "pyme") {
     return data.ruc && data.ruc.length > 0;
@@ -365,6 +371,12 @@ export const companyRegistrationSchema = z.object({
 }, {
   message: "RUC es requerido para empresas PyME, Cédula es requerida para profesionales",
   path: data => data.plan === "pyme" ? ["ruc"] : ["cedula"]
+});
+
+// Login schema
+export const loginSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(1, "Contraseña es requerida"),
 });
 
 // Types
