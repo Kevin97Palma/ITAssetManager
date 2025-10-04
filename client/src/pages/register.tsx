@@ -31,12 +31,12 @@ export default function Register() {
     onSuccess: () => {
       toast({
         title: "¡Registro exitoso!",
-        description: "Tu empresa ha sido registrada. Ahora puedes iniciar sesión.",
+        description: "Tu empresa ha sido registrada. Redirigiendo...",
       });
-      // Redirect to login
+      // Redirect to home (user is automatically logged in)
       setTimeout(() => {
-        window.location.href = "/api/login";
-      }, 2000);
+        window.location.href = "/";
+      }, 1000);
     },
     onError: (error: Error) => {
       toast({
@@ -250,6 +250,41 @@ export default function Register() {
                   </div>
                 </div>
 
+                {/* Password Section */}
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-4">Configurar contraseña</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Password */}
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Contraseña</Label>
+                      <Input
+                        {...form.register("password")}
+                        type="password"
+                        placeholder="Mínimo 6 caracteres"
+                        data-testid="input-password"
+                      />
+                      {form.formState.errors.password && (
+                        <p className="text-sm text-red-500">{form.formState.errors.password.message}</p>
+                      )}
+                    </div>
+
+                    {/* Confirm Password */}
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
+                      <Input
+                        {...form.register("confirmPassword")}
+                        type="password"
+                        placeholder="Repetir contraseña"
+                        data-testid="input-confirmPassword"
+                      />
+                      {form.formState.errors.confirmPassword && (
+                        <p className="text-sm text-red-500">{form.formState.errors.confirmPassword.message}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Buttons */}
                 <div className="flex justify-center pt-6">
                   <Button
@@ -268,7 +303,7 @@ export default function Register() {
                     ¿Ya tienes una cuenta?{" "}
                     <button
                       type="button"
-                      onClick={() => window.location.href = "/api/login"}
+                      onClick={() => window.location.href = "/login"}
                       className="text-primary hover:underline"
                       data-testid="link-login"
                     >

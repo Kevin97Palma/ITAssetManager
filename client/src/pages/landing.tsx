@@ -24,7 +24,7 @@ export default function Landing() {
                 Registrarse
               </Button>
               <Button 
-                onClick={() => window.location.href = '/api/login'}
+                onClick={() => window.location.href = '/login'}
                 variant="outline"
                 data-testid="button-login"
               >
@@ -56,7 +56,7 @@ export default function Landing() {
             <Button 
               size="lg"
               variant="outline"
-              onClick={() => window.location.href = '/api/login'}
+              onClick={() => window.location.href = '/login'}
               className="px-8 py-3"
               data-testid="button-login-hero"
             >

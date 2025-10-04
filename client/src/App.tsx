@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Register from "@/pages/register";
+import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import PhysicalAssets from "@/pages/physical-assets";
 import Applications from "@/pages/applications";
@@ -26,6 +27,7 @@ function Router() {
         <>
           <Route path="/" component={Landing} />
           <Route path="/register" component={Register} />
+          <Route path="/login" component={Login} />
         </>
       ) : (
         <>
