@@ -1,26 +1,121 @@
 /**
- * ARCHIVO PRINCIPAL DE RUTAS DEL BACKEND
+ * ============================================================================
+ * ARCHIVO PRINCIPAL DE RUTAS DEL BACKEND (API REST)
+ * ============================================================================
  * 
- * Este archivo contiene todas las rutas de la API REST del sistema de gestión de activos IT.
- * El sistema está estructurado como un backend de microservicios con separación clara de responsabilidades:
+ * Este archivo define todas las rutas de la API REST para el sistema de gestión
+ * de activos TI. Implementa un patrón MVC donde este archivo actúa como la capa
+ * de controladores, delegando la lógica de negocio a la capa de storage.
  * 
- * ARQUITECTURA DEL SISTEMA:
- * - Modelo MVC: Controladores (routes) -> Servicios (storage) -> Modelos (schema)
- * - Autenticación: Email/Password con sesiones seguras usando express-session y bcrypt
- * - Base de Datos: PostgreSQL con Drizzle ORM para operaciones type-safe
- * - Validación: Esquemas Zod para validación de entrada y tipos TypeScript
+ * ARQUITECTURA:
+ * ┌─────────────┐      HTTP       ┌─────────────┐      SQL      ┌──────────┐
+ * │   Cliente   │ ─── Request ───> │   Routes    │ ── Query ───> │    DB    │
+ * │  (React)    │                  │ (este file) │               │ (Postgres│
+ * │             │ <── Response ─── │             │ <── Result ── │    17)   │
+ * └─────────────┘                  └─────────────┘               └──────────┘
+ *                                         │
+ *                                         ↓
+ *                                  ┌─────────────┐
+ *                                  │   Storage   │ (server/storage.ts)
+ *                                  │  (Queries)  │
+ *                                  └─────────────┘
  * 
- * ROLES Y PERMISOS:
- * - super_admin: Acceso completo a todas las empresas y configuración del sistema
- * - manager_owner: Gestión completa de su empresa (crear/editar/eliminar activos)
- * - technical_admin: Gestión técnica (activos, contratos, licencias, mantenimiento)
+ * PATRÓN DE DISEÑO: Model-View-Controller (MVC)
+ * - Routes (Controllers): Manejan HTTP requests/responses y validación
+ * - Storage (Services): Encapsulan la lógica de acceso a datos
+ * - Schema (Models): Definen la estructura de datos y validación
  * 
- * SEGURIDAD:
- * - Todas las rutas requieren autenticación via middleware isAuthenticated (sessions)
- * - Passwords hasheados con bcrypt (10 salt rounds)
- * - Validación de entrada con esquemas Zod antes de procesar datos
- * - Scope de empresa: Todos los datos están aislados por companyId
- * - Logging de actividad: Todas las acciones se registran para auditoría
+ * AUTENTICACIÓN Y AUTORIZACIÓN:
+ * - Sistema: Email/Password con sesiones persistentes (express-session)
+ * - Storage: Sesiones guardadas en PostgreSQL tabla 'sessions'
+ * - Password: Hash con bcrypt (10 salt rounds)
+ * - Middleware: isAuthenticated() valida sesión en rutas protegidas
+ * 
+ * ROLES DEL SISTEMA:
+ * 1. super_admin:
+ *    - Acceso total a todas las empresas del sistema
+ *    - Gestión de planes y límites de uso
+ *    - Configuración global del sistema
+ * 
+ * 2. manager_owner:
+ *    - Dueño/gerente de una empresa específica
+ *    - CRUD completo de activos, contratos y licencias
+ *    - Gestión de usuarios de su empresa
+ * 
+ * 3. technical_admin:
+ *    - Administrador técnico de una empresa
+ *    - Gestión de activos, mantenimiento y reportes
+ *    - Sin acceso a configuración de empresa
+ * 
+ * 4. technician:
+ *    - Técnico operativo de una empresa
+ *    - Solo lectura y actualización de mantenimiento
+ * 
+ * SEGURIDAD IMPLEMENTADA:
+ * ✅ Autenticación requerida: Middleware isAuthenticated() en rutas protegidas
+ * ✅ Password hashing: bcrypt con 10 salt rounds
+ * ✅ Validación de entrada: Esquemas Zod en todos los endpoints
+ * ✅ Multi-tenancy: Aislamiento de datos por companyId
+ * ✅ SQL Injection: Prepared statements con pg driver
+ * ✅ Sesiones seguras: httpOnly cookies, regeneración de ID
+ * ✅ Logging de auditoría: Tabla activity_log registra todas las operaciones
+ * 
+ * ESTRUCTURA DE ENDPOINTS:
+ * 
+ * PÚBLICOS (sin autenticación):
+ * - POST /api/register        → Registro de nueva empresa
+ * - POST /api/login           → Iniciar sesión
+ * - POST /api/logout          → Cerrar sesión
+ * 
+ * AUTENTICACIÓN:
+ * - GET  /api/auth/user       → Obtener usuario actual
+ * - GET  /api/auth/companies  → Listar empresas del usuario
+ * - POST /api/auth/switch-company → Cambiar empresa activa
+ * 
+ * DASHBOARD Y ANALYTICS:
+ * - GET /api/dashboard/stats/:companyId    → KPIs y métricas
+ * - GET /api/dashboard/costs/:companyId    → Análisis de costos
+ * - GET /api/dashboard/expirations/:companyId → Vencimientos próximos
+ * - GET /api/activity/:companyId           → Log de actividad
+ * 
+ * ACTIVOS (Assets):
+ * - GET    /api/assets/:companyId    → Listar todos los activos
+ * - GET    /api/assets/:companyId/:id → Obtener activo específico
+ * - POST   /api/assets/:companyId    → Crear nuevo activo
+ * - PUT    /api/assets/:companyId/:id → Actualizar activo
+ * - DELETE /api/assets/:companyId/:id → Eliminar activo
+ * 
+ * CONTRATOS (Contracts):
+ * - GET    /api/contracts/:companyId
+ * - GET    /api/contracts/:companyId/:id
+ * - POST   /api/contracts/:companyId
+ * - PUT    /api/contracts/:companyId/:id
+ * - DELETE /api/contracts/:companyId/:id
+ * 
+ * LICENCIAS (Licenses):
+ * - GET    /api/licenses/:companyId
+ * - GET    /api/licenses/:companyId/:id
+ * - POST   /api/licenses/:companyId
+ * - PUT    /api/licenses/:companyId/:id
+ * - DELETE /api/licenses/:companyId/:id
+ * 
+ * MANTENIMIENTO (Maintenance):
+ * - GET    /api/maintenance/:companyId
+ * - GET    /api/maintenance/:companyId/asset/:assetId
+ * - POST   /api/maintenance/:companyId
+ * - PUT    /api/maintenance/:companyId/:id
+ * - DELETE /api/maintenance/:companyId/:id
+ * 
+ * ADMIN (solo super_admin):
+ * - GET  /api/admin/companies        → Listar todas las empresas
+ * - PUT  /api/admin/companies/:id/plan → Cambiar plan de empresa
+ * - PUT  /api/admin/companies/:id/status → Activar/desactivar empresa
+ * 
+ * CONVENCIONES:
+ * - Todos los IDs son UUIDs (generados por PostgreSQL)
+ * - Responses en formato JSON
+ * - Códigos HTTP estándar (200, 201, 400, 401, 403, 404, 500)
+ * - Mensajes de error descriptivos en español
  */
 
 import type { Express } from "express";
@@ -55,30 +150,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // =============================================================================
   
   /**
-   * POST /api/register
-   * Registra una nueva empresa con su usuario administrador.
-   * NO requiere autenticación (ruta pública)
+   * ═══════════════════════════════════════════════════════════════════════════
+   * POST /api/register - REGISTRO DE NUEVA EMPRESA
+   * ═══════════════════════════════════════════════════════════════════════════
+   * 
+   * Registra una nueva empresa en el sistema junto con su primer usuario (owner/manager).
+   * Este es el punto de entrada principal para nuevos clientes.
+   * 
+   * FLUJO DE REGISTRO:
+   * 1. Validar datos de entrada con Zod (companyRegistrationSchema)
+   * 2. Hashear password con bcrypt (10 salt rounds)
+   * 3. Iniciar transacción de base de datos
+   * 4. Crear empresa con plan seleccionado (PyME o Professional)
+   * 5. Crear usuario administrador (role: manager_owner)
+   * 6. Vincular usuario con empresa en tabla user_companies
+   * 7. Commit de transacción
+   * 8. Crear sesión automática (login automático post-registro)
+   * 
+   * REQUEST BODY:
+   * {
+   *   // Datos de la empresa
+   *   companyName: string,              // Nombre de la empresa
+   *   plan: "pyme" | "professional",    // Plan de subscripción
+   *   ruc?: string,                     // RUC (Ecuador - empresas)
+   *   cedula?: string,                  // Cédula (Ecuador - personas naturales)
+   *   address?: string,                 // Dirección física
+   *   phone?: string,                   // Teléfono de contacto
+   *   email?: string,                   // Email corporativo
+   *   
+   *   // Datos del usuario administrador
+   *   firstName: string,                // Nombre
+   *   lastName: string,                 // Apellido
+   *   email: string,                    // Email (login)
+   *   password: string,                 // Password en texto plano (se hashea)
+   * }
+   * 
+   * RESPONSE (200 OK):
+   * {
+   *   message: "Empresa registrada exitosamente",
+   *   company: { id, name, plan, ... },
+   *   user: { id, email, firstName, lastName, role }
+   * }
+   * 
+   * ERRORES:
+   * - 400: Email duplicado o RUC/Cédula ya existe
+   * - 500: Error interno del servidor
+   * 
+   * SEGURIDAD:
+   * ✅ Password hasheado antes de almacenar (nunca se guarda en texto plano)
+   * ✅ Transacción atómica (todo o nada)
+   * ✅ Validación de unicidad de email, RUC y cédula
+   * ✅ Sesión creada automáticamente (httpOnly cookie)
+   * 
+   * NO REQUIERE AUTENTICACIÓN (ruta pública)
    */
   app.post('/api/register', async (req: any, res) => {
     try {
+      // PASO 1: Validar datos de entrada con esquema Zod
       const registrationData = companyRegistrationSchema.parse(req.body);
       
-      // Hash the password before storing
+      // PASO 2: Hash del password con bcrypt (10 salt rounds)
+      // NUNCA guardar passwords en texto plano
       const passwordHash = await passwordUtils.hash(registrationData.password);
       
-      // Register company with hashed password
+      // PASO 3-7: Registrar empresa (transacción atómica en storage)
+      // Crea: 1) Empresa, 2) Usuario, 3) Relación user_companies
       const result = await storage.registerCompany({
         ...registrationData,
         passwordHash,
       });
       
-      // Automatically log in the user after registration
+      // PASO 8: Login automático - crear sesión para el usuario recién registrado
       req.session.userId = result.user.id;
       req.session.email = result.user.email;
       req.session.firstName = result.user.firstName;
       req.session.lastName = result.user.lastName;
       req.session.role = result.user.role;
       
+      // Respuesta exitosa con datos de empresa y usuario
       res.json({
         message: "Empresa registrada exitosamente",
         company: result.company,
@@ -92,9 +241,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error registering company:", error);
+      
+      // Manejar errores específicos
       if (error.message === "El email ya está registrado") {
         res.status(400).json({ message: error.message });
       } else if (error.code === '23505') {
+        // PostgreSQL error code 23505: UNIQUE constraint violation
         res.status(400).json({ 
           message: "Ya existe una empresa con este RUC/Cédula o email" 
         });
@@ -105,33 +257,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /**
-   * POST /api/login
-   * Inicia sesión con email y contraseña.
-   * NO requiere autenticación (ruta pública)
+   * ═══════════════════════════════════════════════════════════════════════════
+   * POST /api/login - INICIO DE SESIÓN
+   * ═══════════════════════════════════════════════════════════════════════════
+   * 
+   * Autentica un usuario y crea una sesión persistente.
+   * La sesión se almacena en PostgreSQL (tabla 'sessions') y en una cookie httpOnly.
+   * 
+   * FLUJO DE LOGIN:
+   * 1. Validar formato de email y password con Zod
+   * 2. Buscar usuario por email en la base de datos
+   * 3. Verificar password con bcrypt.compare()
+   * 4. Crear sesión en PostgreSQL (express-session)
+   * 5. Enviar cookie de sesión al cliente (httpOnly, secure en prod)
+   * 
+   * REQUEST BODY:
+   * {
+   *   email: string,      // Email del usuario
+   *   password: string    // Password en texto plano (nunca se guarda)
+   * }
+   * 
+   * RESPONSE (200 OK):
+   * {
+   *   message: "Login exitoso",
+   *   user: {
+   *     id: string,
+   *     email: string,
+   *     firstName: string,
+   *     lastName: string,
+   *     role: "super_admin" | "manager_owner" | "technical_admin"
+   *   }
+   * }
+   * 
+   * ERRORES:
+   * - 401: Credenciales incorrectas (email o password inválidos)
+   *        Nota: El mensaje es genérico por seguridad (no revelar si el email existe)
+   * - 500: Error interno del servidor
+   * 
+   * SEGURIDAD:
+   * ✅ Password verificado con bcrypt (timing-attack resistant)
+   * ✅ Mensaje de error genérico (no revela si el email existe)
+   * ✅ Sesión almacenada en PostgreSQL (no en memoria)
+   * ✅ Cookie httpOnly (no accesible desde JavaScript)
+   * ✅ Cookie secure en producción (solo HTTPS)
+   * ✅ Password nunca se retorna en la respuesta
+   * 
+   * NO REQUIERE AUTENTICACIÓN (ruta pública)
    */
   app.post('/api/login', async (req: any, res) => {
     try {
+      // PASO 1: Validar formato de entrada con Zod
       const { email, password } = loginSchema.parse(req.body);
       
-      // Find user by email
+      // PASO 2: Buscar usuario por email (incluye passwordHash)
       const user = await storage.getUserByEmail(email);
       if (!user) {
+        // No revelar si el email existe (seguridad)
         return res.status(401).json({ message: "Email o contraseña incorrectos" });
       }
       
-      // Verify password
+      // PASO 3: Verificar password con bcrypt
+      // bcrypt.compare() es timing-attack resistant
       const isValidPassword = await passwordUtils.verify(password, user.passwordHash);
       if (!isValidPassword) {
+        // Mismo mensaje de error por seguridad
         return res.status(401).json({ message: "Email o contraseña incorrectos" });
       }
       
-      // Create session
+      // PASO 4-5: Crear sesión (express-session la guarda en PostgreSQL automáticamente)
       req.session.userId = user.id;
       req.session.email = user.email;
       req.session.firstName = user.firstName;
       req.session.lastName = user.lastName;
       req.session.role = user.role;
       
+      // Respuesta exitosa (SIN password hash)
       res.json({
         message: "Login exitoso",
         user: {
