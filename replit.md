@@ -1,83 +1,110 @@
-# Overview
+# TechAssets Pro - Project Documentation
 
-TechAssets Pro is a comprehensive IT asset management platform designed for small and medium-sized businesses (SMBs). The application helps organizations track, manage, and optimize their IT resources including physical assets, software applications, contracts, licenses, and maintenance records. Built as a full-stack web application, it provides an intuitive dashboard for monitoring costs, generating reports, and maintaining compliance across all IT assets.
+## Overview
 
-# User Preferences
+TechAssets Pro is a comprehensive IT asset management system designed for Small and Medium-sized Enterprises (SMEs). It enables organizations to track, manage, and optimize their IT resources, including physical assets, software applications, contracts, licenses, and maintenance records. The full-stack web application provides an intuitive dashboard for cost monitoring, report generation, and compliance management across all IT assets.
 
-Preferred communication style: Simple, everyday language.
+## User Preferences
 
-# System Architecture
+**Preferred communication style:** Simple, everyday language, avoiding excessive technical jargon.
 
-## Frontend Architecture
-- **Framework**: React with TypeScript, using Vite as the build tool
-- **Routing**: Wouter for lightweight client-side routing
-- **State Management**: TanStack Query (React Query) for server state management
-- **UI Components**: Radix UI primitives with shadcn/ui component library
-- **Styling**: Tailwind CSS with custom design tokens and CSS variables
-- **Forms**: React Hook Form with Zod validation
-- **Charts**: Recharts for data visualization
+**Deployment requirements:** Clean and fast deployment optimized for AlmaLinux 9, no dependencies on Docker, Neon, or other external services.
 
-## Backend Architecture
-- **Runtime**: Node.js with Express.js framework
-- **Language**: TypeScript with ES modules
-- **API Pattern**: RESTful API with dedicated route handlers
-- **Middleware**: Custom logging, error handling, and authentication middleware
-- **File Structure**: Monorepo approach with shared schemas between client and server
+**Database:** PostgreSQL 17 with native SQL queries (no ORM).
 
-## Authentication & Authorization
-- **Provider**: Email/Password authentication (independent of Replit)
-- **Password Security**: bcrypt hashing with 10 salt rounds
-- **Session Management**: Express sessions with PostgreSQL session store (connect-pg-simple)
-- **User Management**: Role-based access control with company-scoped permissions
-- **Roles**: Super Admin, Technical Admin, Manager/Owner
-- **Session Secret**: Configurable via SESSION_SECRET environment variable (required for production)
+## System Architecture
 
-## Data Layer
-- **Database**: PostgreSQL 15
-- **ORM**: Drizzle ORM for type-safe database operations
-- **Schema**: Centralized schema definitions in shared directory
-- **Migrations**: Drizzle Kit for database schema management
-- **Validation**: Zod schemas for runtime type validation
+### Separation Frontend/Backend
 
-## Database Design
-The system uses a multi-tenant architecture with the following core entities:
-- **Users**: Authentication and profile management
-- **Companies**: Multi-tenancy support with user-company relationships
-- **Assets**: Physical devices, applications, and digital resources
-- **Contracts**: Vendor agreements and service contracts
-- **Licenses**: Software licensing and compliance tracking
-- **Maintenance Records**: Service history and scheduled maintenance
-- **Activity Log**: Audit trail for all system operations
+The project is clearly separated into two parts:
 
-## Development Workflow
-- **Build System**: Vite for frontend, esbuild for backend bundling
-- **Type Safety**: Full TypeScript coverage across client, server, and shared code
-- **Development Server**: Hot module replacement with Vite dev server
-- **Path Aliases**: Configured for clean imports (@/, @shared/)
+#### FRONTEND (`/client`)
 
-# External Dependencies
+**Technologies:** React 18 + TypeScript, Vite, Tailwind CSS + shadcn/ui, TanStack Query (React Query v5), Wouter, React Hook Form + Zod, Recharts.
 
-## Database Services
-- **PostgreSQL**: Local or remote PostgreSQL 15 server
-- **Connection Pooling**: Built-in with Drizzle ORM
+**Features:** Single Page Application (SPA), REST API communication, state management with TanStack Query, accessible UI with Radix UI primitives.
 
-## UI and Component Libraries
-- **Radix UI**: Headless UI primitives for accessibility and behavior
-- **shadcn/ui**: Pre-built component library based on Radix
-- **Lucide React**: Icon library for consistent iconography
-- **Recharts**: Chart library built on D3 for data visualization
+#### BACKEND (`/server`)
 
-## Development Tools
-- **Replit Platform**: Development environment with integrated deployment
-- **Vite Plugins**: Runtime error overlay and cartographer for enhanced development
-- **PostCSS**: CSS processing with Tailwind and Autoprefixer
-- **Date-fns**: Date manipulation and formatting library
+**Technologies:** Node.js 18+ + TypeScript, Express.js, `pg` (node-postgres), bcrypt, express-session, connect-pg-simple.
 
-## Session and Storage
-- **connect-pg-simple**: PostgreSQL session store for Express sessions
-- **Memoizee**: Function memoization for performance optimization
+**Features:** REST API with JSON, native SQL queries (no ORM), prepared statements, optimized connection pooling, session-based authentication.
 
-## Form and Validation
-- **React Hook Form**: Form state management with minimal re-renders
-- **Zod**: Schema validation for forms and API data
-- **@hookform/resolvers**: Integration between React Hook Form and Zod
+#### SHARED (`/shared`)
+
+**Purpose:** Contains shared TypeScript types and Zod validation schemas for consistency across frontend and backend.
+
+### Authentication and Authorization
+
+**Provider:** Email/Password authentication.
+**Security:** bcrypt hashing (10 salt rounds) for passwords, Express sessions with PostgreSQL store (connect-pg-simple).
+**Roles:** `super_admin`, `manager_owner`, `technical_admin`, `technician` with distinct permissions.
+**Environment Variable:** `SESSION_SECRET` required for production.
+
+### Data Layer
+
+**Database:** PostgreSQL 17.
+**Queries:** Native SQL using `pg` driver.
+**Pattern:** Repository Pattern in `server/storage.ts`.
+**Validation:** Zod schemas for runtime validation.
+**Data Mapping:** Helper functions to convert `snake_case` (PostgreSQL) to `camelCase` (TypeScript).
+
+### Database Design
+
+Multi-tenant architecture with core entities: `users`, `companies`, `user_companies`, `assets`, `contracts`, `licenses`, `maintenance_records`, `activity_log`, `sessions`.
+
+**Database Features:**
+- PostgreSQL 17 (compatible with 15-16).
+- Native SQL queries with prepared statements.
+- Optimized connection pooling.
+- ENUM types for various statuses and roles.
+- Optimized indices and foreign keys with CASCADE for data integrity.
+
+### Implemented Design Patterns
+
+- **Repository Pattern:** Abstraction of data access logic (`server/storage.ts`).
+- **MVC Pattern:** `Models` (`shared/schema.ts`), `Views` (`client/src/`), `Controllers` (`server/routes.ts`).
+- **Session-Based Authentication:** Persistent sessions in PostgreSQL, bcrypt hashing, reusable authentication middleware, httpOnly cookies.
+- **Component Composition (Frontend):** Reusable UI components, shared layouts, custom hooks.
+
+### Security Measures
+
+**Backend:** Prepared statements, bcrypt hashing, secure sessions, Zod data validation, multi-tenancy, audit logging.
+**Frontend:** HTTPS (production), security headers, client-side validation, no exposure of secrets.
+**Database:** Connection pooling limits, timeouts, robust constraints, optimized indices.
+
+### Data Flow
+
+The system follows a classic client-server model: Frontend (React) communicates via HTTP/REST (JSON) with the Backend (Express), which then interacts with PostgreSQL 17 via SQL queries. TanStack Query manages frontend state, while the backend utilizes a Storage Layer (Repository Pattern) for data access.
+
+### Production Deployment Strategy (AlmaLinux 9)
+
+**Stack:** AlmaLinux 9, Node.js 18 LTS, PostgreSQL 17, PM2, Nginx, Let's Encrypt.
+**Process:** Involves PostgreSQL setup, dependency installation, application build, PM2 configuration, Nginx as a reverse proxy, SSL certification, and firewall setup.
+
+## External Dependencies
+
+### Database Services
+- **PostgreSQL 17:** Local or remote PostgreSQL server.
+- **Connection Pooling:** Integrated with native `pg` driver.
+
+### UI Libraries and Components
+- **Radix UI:** Headless UI primitives for accessibility.
+- **shadcn/ui:** Pre-built component library based on Radix.
+- **Lucide React:** Icon library.
+- **Recharts:** Charting library for data visualization.
+
+### Development Tools
+- **Replit Platform:** Integrated development environment.
+- **Vite Plugins:** For enhanced development experience.
+- **PostCSS:** CSS processing with Tailwind and Autoprefixer.
+- **date-fns:** Date manipulation and formatting library.
+
+### Session Management and Storage
+- **connect-pg-simple:** PostgreSQL session store for Express.
+- **memoizee:** Function memoization for performance optimization.
+
+### Forms and Validation
+- **React Hook Form:** Form state management.
+- **Zod:** Schema validation for forms and API data.
+- **@hookform/resolvers:** Integration with React Hook Form.
