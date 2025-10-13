@@ -46,20 +46,33 @@ import {
 import { pool } from "./db";
 
 /**
- * Helper function to convert snake_case database columns to camelCase
+ * FUNCIÓN HELPER: Mapeo de Columnas PostgreSQL a TypeScript
+ * 
+ * Convierte las columnas snake_case de PostgreSQL al formato camelCase de TypeScript.
+ * 
+ * PostgreSQL usa snake_case por convención (password_hash, first_name) mientras que
+ * TypeScript/JavaScript usa camelCase (passwordHash, firstName). Esta función realiza
+ * la conversión automática para mantener consistencia de tipos.
+ * 
+ * @param row - Fila de resultado de PostgreSQL con columnas en snake_case
+ * @returns Objeto User con propiedades en camelCase, o undefined si row es null/undefined
+ * 
+ * @example
+ * // PostgreSQL retorna: { first_name: "John", last_name: "Doe", password_hash: "$2b$10..." }
+ * // Esta función mapea a: { firstName: "John", lastName: "Doe", passwordHash: "$2b$10..." }
  */
 function mapUserFromDb(row: any): User | undefined {
   if (!row) return undefined;
   return {
     id: row.id,
     email: row.email,
-    passwordHash: row.password_hash,
-    firstName: row.first_name,
-    lastName: row.last_name,
-    profileImageUrl: row.profile_image_url,
+    passwordHash: row.password_hash,              // snake_case → camelCase
+    firstName: row.first_name,                    // snake_case → camelCase
+    lastName: row.last_name,                      // snake_case → camelCase
+    profileImageUrl: row.profile_image_url,       // snake_case → camelCase
     role: row.role,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdAt: row.created_at,                    // snake_case → camelCase
+    updatedAt: row.updated_at,                    // snake_case → camelCase
   };
 }
 
@@ -183,7 +196,19 @@ export class DatabaseStorage implements IStorage {
   // ==========================================================================
   
   /**
-   * Obtiene un usuario por su ID único.
+   * OBTENER USUARIO POR ID
+   * 
+   * Busca y retorna un usuario por su ID único (UUID).
+   * Utilizado principalmente para validar sesiones y permisos.
+   * 
+   * @param id - UUID del usuario a buscar
+   * @returns Usuario encontrado o undefined si no existe
+   * 
+   * @example
+   * const user = await storage.getUser('123e4567-e89b-12d3-a456-426614174000');
+   * if (user) {
+   *   console.log(`Usuario: ${user.firstName} ${user.lastName}`);
+   * }
    */
   async getUser(id: string): Promise<User | undefined> {
     const result = await pool.query(
@@ -194,7 +219,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Obtiene un usuario por su email.
+   * OBTENER USUARIO POR EMAIL
+   * 
+   * Busca un usuario por su dirección de email (único en la base de datos).
+   * Este método es crítico para el proceso de autenticación.
+   * 
+   * IMPORTANTE: El email es case-insensitive en PostgreSQL gracias a la constraint UNIQUE.
+   * 
+   * @param email - Dirección de email del usuario
+   * @returns Usuario encontrado con passwordHash incluido, o undefined si no existe
+   * 
+   * @security El passwordHash retornado debe usarse solo para verificación y nunca enviarse al frontend
+   * 
+   * @example
+   * const user = await storage.getUserByEmail('user@example.com');
+   * if (user && await bcrypt.compare(password, user.passwordHash)) {
+   *   // Login exitoso
+   * }
    */
   async getUserByEmail(email: string): Promise<User | undefined> {
     const result = await pool.query(
@@ -205,7 +246,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Crea un nuevo usuario con password hash.
+   * CREAR NUEVO USUARIO
+   * 
+   * Inserta un nuevo usuario en la base de datos con su password hasheado.
+   * El password debe estar previamente hasheado con bcrypt antes de llamar esta función.
+   * 
+   * @param email - Email único del usuario (se valida constraint UNIQUE)
+   * @param passwordHash - Password ya hasheado con bcrypt (10 rounds recomendado)
+   * @param firstName - Nombre del usuario
+   * @param lastName - Apellido del usuario
+   * @param role - Rol del usuario (default: "technical_admin")
+   * @returns Usuario creado con todos sus campos
+   * 
+   * @throws Error si el email ya existe (violación de UNIQUE constraint)
+   * 
+   * @example
+   * const hash = await bcrypt.hash('password123', 10);
+   * const newUser = await storage.createUser(
+   *   'nuevo@example.com',
+   *   hash,
+   *   'Juan',
+   *   'Pérez',
+   *   'technical_admin'
+   * );
    */
   async createUser(
     email: string, 
