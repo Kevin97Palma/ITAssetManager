@@ -2,6 +2,67 @@
 
 Sistema integral de gestión de activos TI para pequeñas y medianas empresas (PyMEs). Permite gestionar equipos físicos, aplicaciones, contratos, licencias y servicios de infraestructura con seguimiento de costos y alertas de vencimiento.
 
+## 📁 Estructura del Proyecto
+
+```
+techassets-pro/
+├── client/                    # 🎨 FRONTEND - Aplicación React
+│   ├── src/
+│   │   ├── components/       # Componentes reutilizables de UI
+│   │   │   ├── layout/      # Layout principal, header, sidebar
+│   │   │   ├── dashboard/   # Widgets del dashboard
+│   │   │   └── ui/          # Componentes shadcn/ui
+│   │   ├── pages/           # Páginas de la aplicación
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Login.tsx
+│   │   │   ├── Register.tsx
+│   │   │   └── ...
+│   │   ├── lib/             # Utilidades del frontend
+│   │   │   └── queryClient.ts # Configuración TanStack Query
+│   │   ├── App.tsx          # Router principal
+│   │   ├── main.tsx         # Entry point de React
+│   │   └── index.css        # Estilos globales
+│   └── index.html           # HTML template
+│
+├── server/                   # ⚙️ BACKEND - API Node.js/Express
+│   ├── db.ts               # Configuración de PostgreSQL pool
+│   ├── storage.ts          # Capa de acceso a datos (Repository Pattern)
+│   ├── routes.ts           # Endpoints de la API REST
+│   ├── auth.ts             # Lógica de autenticación
+│   ├── index.ts            # Entry point del servidor
+│   └── vite.ts             # Configuración Vite para desarrollo
+│
+├── shared/                  # 🔗 COMPARTIDO - Frontend & Backend
+│   └── schema.ts           # Tipos TypeScript y validaciones Zod
+│
+├── schema.sql              # 💾 Schema completo de PostgreSQL
+├── package.json            # Dependencias del proyecto
+├── tsconfig.json           # Configuración TypeScript
+├── vite.config.ts          # Configuración Vite
+└── README.md              # Este archivo
+```
+
+### Separación Frontend/Backend
+
+**Frontend (`/client`):**
+- Aplicación React + TypeScript ejecutándose en el navegador
+- Comunicación con backend vía API REST (`fetch`)
+- Gestión de estado con TanStack Query
+- UI construida con shadcn/ui + Tailwind CSS
+- **Puerto de desarrollo:** 5000 (sirve Vite)
+
+**Backend (`/server`):**
+- API REST con Express + TypeScript
+- Queries SQL nativos a PostgreSQL 17
+- Autenticación con sesiones persistentes
+- **Puerto de desarrollo:** 5000 (mismo puerto, Vite proxy en dev)
+- **Puerto de producción:** Configurable vía `PORT` env var
+
+**Shared (`/shared`):**
+- Tipos TypeScript compartidos entre frontend y backend
+- Esquemas de validación Zod
+- Garantiza consistencia de tipos en toda la aplicación
+
 ## 🚀 Características Principales
 
 - **Gestión Multi-empresa**: Soporte para múltiples compañías con control de acceso basado en roles
@@ -14,30 +75,39 @@ Sistema integral de gestión de activos TI para pequeñas y medianas empresas (P
 
 ## 🛠️ Stack Tecnológico
 
-### Frontend
-- React 18 con TypeScript
-- Vite como build tool
-- Tailwind CSS para estilos
-- shadcn/ui para componentes
-- TanStack Query para gestión de estado
-- Wouter para routing
-- Recharts para visualización de datos
+### Frontend (React SPA)
+- **React 18** con TypeScript - Framework UI moderno
+- **Vite** - Build tool ultra-rápido con HMR
+- **Tailwind CSS** - Utility-first CSS framework
+- **shadcn/ui** - Componentes accesibles con Radix UI
+- **TanStack Query (React Query)** - Gestión de estado del servidor
+- **Wouter** - Routing minimalista para React
+- **Recharts** - Librería de gráficos basada en D3
+- **React Hook Form** - Manejo de formularios performante
+- **Zod** - Validación de esquemas TypeScript-first
 
-### Backend
-- Node.js con Express
-- TypeScript
-- Autenticación Email/Password con bcrypt
-- Sesiones con PostgreSQL
+### Backend (Node.js API)
+- **Node.js 18+** con Express - Runtime y framework web
+- **TypeScript** - Lenguaje con tipado estático
+- **pg (node-postgres)** - Cliente nativo PostgreSQL
+- **bcrypt** - Hashing seguro de contraseñas (10 rounds)
+- **express-session** - Gestión de sesiones
+- **connect-pg-simple** - Store de sesiones en PostgreSQL
+- **Passport.js** - Middleware de autenticación
 
 ### Base de Datos
-- PostgreSQL 15
-- Queries SQL nativas para manejo de datos
-- Esquemas con validación Zod
+- **PostgreSQL 17** - Base de datos relacional
+- **Queries SQL Nativos** - Sin ORM, control total sobre SQL
+- **Prepared Statements** - Prevención de SQL injection
+- **Connection Pooling** - Pool de conexiones optimizado
+- **ACID Transactions** - Integridad de datos garantizada
 
 ## 📋 Requisitos Previos
 
-- Node.js 18 o superior
-- PostgreSQL 14 o superior
+- **Node.js 18 o superior** - Runtime JavaScript
+- **PostgreSQL 17** - Base de datos (también compatible con 15-16)
+- **npm o yarn** - Gestor de paquetes
+- **Git** - Control de versiones
 
 ## 🚀 Instalación y Configuración
 
@@ -54,121 +124,188 @@ cd techassets-pro
 npm install
 ```
 
+Esto instalará todas las dependencias de frontend y backend definidas en `package.json`.
+
 ### 3. Configurar Variables de Entorno
 
 Crear un archivo `.env` en la raíz del proyecto:
 
 ```bash
-# Base de datos
-DATABASE_URL="postgresql://usuario:contraseña@host:puerto/basededatos"
-PGHOST="host-de-la-base"
+# ========================================
+# CONFIGURACIÓN DE BASE DE DATOS
+# ========================================
+DATABASE_URL="postgresql://techassets_user:tu_contraseña@localhost:5432/techassets_pro"
+PGHOST="localhost"
 PGPORT="5432"
-PGUSER="usuario"
-PGPASSWORD="contraseña"
-PGDATABASE="nombre_base_datos"
+PGUSER="techassets_user"
+PGPASSWORD="tu_contraseña_segura"
+PGDATABASE="techassets_pro"
 
-# Autenticación
+# ========================================
+# CONFIGURACIÓN DE AUTENTICACIÓN
+# ========================================
+# Generar con: openssl rand -base64 32
 SESSION_SECRET="clave-secreta-muy-segura-de-al-menos-32-caracteres"
 
-# Servidor (opcional)
+# ========================================
+# CONFIGURACIÓN DEL SERVIDOR
+# ========================================
 PORT=5000
 NODE_ENV=development
 ```
 
-### 4. Configurar PostgreSQL
+### 4. Configurar PostgreSQL 17
 
-#### Instalar PostgreSQL en AlmaLinux:
+#### Instalar PostgreSQL 17 en AlmaLinux 9:
 
 ```bash
-sudo dnf install -y postgresql15-server postgresql15-contrib
-sudo postgresql-setup --initdb
-sudo systemctl enable --now postgresql
+# Agregar repositorio oficial de PostgreSQL
+sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+
+# Deshabilitar módulo PostgreSQL por defecto
+sudo dnf -qy module disable postgresql
+
+# Instalar PostgreSQL 17
+sudo dnf install -y postgresql17-server postgresql17-contrib
+
+# Inicializar el cluster de base de datos
+sudo /usr/pgsql-17/bin/postgresql-17-setup initdb
+
+# Iniciar y habilitar el servicio
+sudo systemctl enable postgresql-17
+sudo systemctl start postgresql-17
+
+# Verificar que está corriendo
+sudo systemctl status postgresql-17
 ```
 
-#### Crear base de datos:
+#### Instalar PostgreSQL 17 en Ubuntu/Debian:
+
+```bash
+# Agregar repositorio oficial de PostgreSQL
+sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+
+# Actualizar e instalar
+sudo apt update
+sudo apt install -y postgresql-17 postgresql-contrib-17
+
+# El servicio se inicia automáticamente
+sudo systemctl status postgresql
+```
+
+#### Crear Base de Datos y Usuario:
 
 ```bash
 # Cambiar a usuario postgres
 sudo -u postgres psql
 
-# Crear base de datos y usuario
+# Ejecutar en el shell de PostgreSQL:
 CREATE DATABASE techassets_pro;
 CREATE USER techassets_user WITH PASSWORD 'tu_contraseña_segura';
 GRANT ALL PRIVILEGES ON DATABASE techassets_pro TO techassets_user;
+
+-- Permisos adicionales para PostgreSQL 15+
+\c techassets_pro
+GRANT ALL ON SCHEMA public TO techassets_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO techassets_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO techassets_user;
+
 \q
 ```
 
-#### Aplicar el schema:
+#### Aplicar el Schema de Base de Datos:
 
-El proyecto incluye un script SQL completo (`schema.sql`) que crea todas las tablas, índices y constraints necesarios:
+El proyecto incluye `schema.sql` con la definición completa de la base de datos:
 
 ```bash
 # Aplicar el schema completo
-psql -U techassets_user -d techassets_pro -f schema.sql
+psql -h localhost -U techassets_user -d techassets_pro -f schema.sql
 
 # Verificar que las tablas se crearon correctamente
-psql -U techassets_user -d techassets_pro -c "\dt"
+psql -h localhost -U techassets_user -d techassets_pro -c "\dt"
 ```
 
-**Importante:** El script `schema.sql` incluye:
-- Creación de tipos ENUM (roles, estados, planes)
-- Tabla de sesiones para express-session
-- Todas las tablas del sistema con constraints y foreign keys
-- Índices optimizados para búsquedas rápidas
-- Comentarios de documentación
+**Contenido del schema.sql:**
+- ✅ 8 tipos ENUM (role_type, asset_type, plan_type, etc.)
+- ✅ 8 tablas principales (users, companies, assets, contracts, licenses, maintenance_records, activity_log, sessions)
+- ✅ 25+ índices optimizados para consultas rápidas
+- ✅ Foreign keys y constraints para integridad referencial
+- ✅ Tabla de sesiones para express-session
+- ✅ Configuración de CASCADE para deletes
+- ✅ Comentarios de documentación integrados
 
-#### Script de Creación Manual de Base de Datos
+#### Script de Instalación Automática (AlmaLinux 9):
 
-Para crear la base de datos completamente desde cero en AlmaLinux, sigue estos pasos:
+Guardar como `install_db.sh`:
 
 ```bash
-# 1. Instalar PostgreSQL 15
-sudo dnf install -y postgresql15-server postgresql15-contrib
+#!/bin/bash
 
-# 2. Inicializar el cluster de base de datos
-sudo postgresql-setup --initdb
+# Script de instalación de PostgreSQL 17 para TechAssets Pro
+# Compatible con AlmaLinux 9
 
-# 3. Iniciar y habilitar el servicio
-sudo systemctl enable --now postgresql
+set -e
 
-# 4. Crear base de datos y usuario
+echo "📦 Instalando PostgreSQL 17..."
+sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+sudo dnf -qy module disable postgresql
+sudo dnf install -y postgresql17-server postgresql17-contrib
+
+echo "🔧 Inicializando PostgreSQL..."
+sudo /usr/pgsql-17/bin/postgresql-17-setup initdb
+
+echo "🚀 Iniciando servicio..."
+sudo systemctl enable postgresql-17
+sudo systemctl start postgresql-17
+
+echo "📊 Creando base de datos y usuario..."
 sudo -u postgres psql << EOF
 CREATE DATABASE techassets_pro;
-CREATE USER techassets_user WITH PASSWORD 'contraseña_segura_aquí';
+CREATE USER techassets_user WITH PASSWORD 'CambiarEstaContraseña123!';
 GRANT ALL PRIVILEGES ON DATABASE techassets_pro TO techassets_user;
-\q
+\c techassets_pro
+GRANT ALL ON SCHEMA public TO techassets_user;
 EOF
 
-# 5. Aplicar el schema completo
-psql -U techassets_user -d techassets_pro -f schema.sql
+echo "📋 Aplicando schema..."
+psql -h localhost -U techassets_user -d techassets_pro -f schema.sql
 
-# 6. Verificar instalación
-psql -U techassets_user -d techassets_pro -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public';"
+echo "✅ Instalación completada!"
+echo "🔐 IMPORTANTE: Cambiar la contraseña en el script y en .env"
 ```
 
-El archivo `schema.sql` contiene la definición completa de:
-- 8 tablas principales (users, companies, assets, contracts, licenses, maintenance_records, activity_log, sessions)
-- 8 tipos ENUM personalizados
-- 20+ índices para optimización de queries
-- Constraints y foreign keys para integridad referencial
-- Comentarios y documentación integrada
+Ejecutar:
 
-### 5. Crear Usuario Administrador (Opcional)
-
-Para crear un usuario super admin, puedes registrarte desde la interfaz web en `/register` o ejecutar:
-
-```javascript
-// Usar bcrypt para generar el hash del password
-const bcrypt = require('bcrypt');
-const password = 'TuContraseñaSegura';
-bcrypt.hash(password, 10).then(hash => console.log(hash));
+```bash
+chmod +x install_db.sh
+./install_db.sh
 ```
 
-Luego insertar en la base de datos:
+### 5. Crear Usuario Administrador Inicial
+
+Opción 1: Registrarse desde la interfaz web en `/register`
+
+Opción 2: Crear manualmente desde la línea de comandos:
+
+```bash
+# Generar hash de contraseña con Node.js
+node -e "require('bcrypt').hash('TuContraseñaSegura', 10).then(h => console.log(h))"
+
+# Copiar el hash generado e insertar en la base de datos
+psql -h localhost -U techassets_user -d techassets_pro
+```
 
 ```sql
+-- Insertar usuario super admin
 INSERT INTO users (email, password_hash, first_name, last_name, role)
-VALUES ('admin@tuempresa.com', 'hash-generado', 'Admin', 'Sistema', 'super_admin');
+VALUES (
+  'admin@tuempresa.com',
+  '$2b$10$hash_generado_aqui',
+  'Admin',
+  'Sistema',
+  'super_admin'
+);
 ```
 
 ## 🏃‍♂️ Ejecutar en Desarrollo
@@ -177,139 +314,205 @@ VALUES ('admin@tuempresa.com', 'hash-generado', 'Admin', 'Sistema', 'super_admin
 npm run dev
 ```
 
+Esto iniciará:
+- 🎨 **Frontend (Vite Dev Server)**: `http://localhost:5000`
+- ⚙️ **Backend (Express API)**: Mismo puerto con proxy automático
+- 🔄 **Hot Module Replacement**: Recarga automática en cambios
+
 La aplicación estará disponible en `http://localhost:5000`
 
 ## 🏗️ Compilar para Producción
 
 ```bash
+# Compilar frontend y backend
 npm run build
+
+# El output estará en:
+# - Frontend: dist/public/
+# - Backend: dist/server/
 ```
 
-## 🚀 Despliegue en Producción
+## 🚀 Despliegue en Producción (AlmaLinux 9)
 
-El proyecto incluye documentación completa de deployment en `DEPLOYMENT.md` para servidores AlmaLinux.
-
-### Despliegue en Servidor AlmaLinux (Recomendado para Producción)
-
-Ver la guía completa en [DEPLOYMENT.md](./DEPLOYMENT.md) que incluye:
-
-- Preparación del servidor y dependencias
-- Configuración de PostgreSQL
-- Deployment de backend con PM2
-- Build y configuración de frontend
-- Configuración de Nginx como reverse proxy
-- Setup de SSL/HTTPS con Let's Encrypt
-- Servicios systemd para auto-inicio
-- Procedimientos de mantenimiento
-
-### Despliegue Rápido en Otros VPS
-
-#### 1. Preparar el Servidor
+### Preparación del Servidor
 
 ```bash
-# Actualizar sistema (Ubuntu/Debian)
-sudo apt update && sudo apt upgrade -y
+# 1. Actualizar sistema
+sudo dnf update -y
 
-# Instalar Node.js 18
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
+# 2. Instalar Node.js 18 (LTS)
+sudo dnf install -y gcc-c++ make
+curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
+sudo dnf install -y nodejs
 
-# Instalar PM2 para gestión de procesos
+# 3. Instalar PM2 para gestión de procesos
 sudo npm install -g pm2
 
-# Instalar PostgreSQL
-sudo apt install postgresql postgresql-contrib
+# 4. Instalar PostgreSQL 17 (ver sección anterior)
+
+# 5. Instalar Nginx
+sudo dnf install -y nginx
+sudo systemctl enable nginx
+sudo systemctl start nginx
 ```
 
-#### 2. Configurar PostgreSQL
+### Configurar el Proyecto
 
 ```bash
-# Cambiar a usuario postgres
-sudo -u postgres psql
-
-# Crear base de datos y usuario
-CREATE DATABASE techassets_pro;
-CREATE USER techassets_user WITH PASSWORD 'contraseña_muy_segura';
-GRANT ALL PRIVILEGES ON DATABASE techassets_pro TO techassets_user;
-\q
-```
-
-#### 3. Clonar y Configurar Proyecto
-
-```bash
-# Clonar repositorio
-git clone <url-repositorio> /var/www/techassets-pro
+# 1. Clonar repositorio en /var/www
+sudo mkdir -p /var/www
+sudo git clone <url-repositorio> /var/www/techassets-pro
 cd /var/www/techassets-pro
 
-# Instalar dependencias
+# 2. Cambiar permisos
+sudo chown -R $USER:$USER /var/www/techassets-pro
+
+# 3. Instalar dependencias (solo producción)
 npm ci --only=production
 
-# Configurar variables de entorno
+# 4. Configurar variables de entorno
 sudo nano .env
-# (Agregar todas las variables necesarias)
+# (Copiar y ajustar las variables de entorno)
 
-# Aplicar schema de base de datos
-psql -U techassets_user -d techassets_pro -f schema.sql
+# 5. Aplicar schema de base de datos
+psql -h localhost -U techassets_user -d techassets_pro -f schema.sql
 
-# Compilar aplicación
+# 6. Compilar aplicación
 npm run build
 ```
 
-#### 4. Configurar PM2
+### Configurar PM2
 
-Crear archivo `ecosystem.config.js`:
+Crear `ecosystem.config.js`:
 
 ```javascript
+/**
+ * Configuración de PM2 para TechAssets Pro
+ * 
+ * Este archivo define cómo PM2 debe ejecutar la aplicación:
+ * - Modo cluster para aprovechar múltiples CPUs
+ * - Auto-restart en caso de fallos
+ * - Variables de entorno de producción
+ */
 module.exports = {
   apps: [{
     name: 'techassets-pro',
-    script: 'npm',
-    args: 'start',
+    script: './dist/server/index.js',
     cwd: '/var/www/techassets-pro',
-    env: {
+    instances: 'max',           // Usar todos los CPUs disponibles
+    exec_mode: 'cluster',        // Modo cluster para load balancing
+    watch: false,                // No watch en producción
+    max_memory_restart: '1G',    // Restart si usa más de 1GB RAM
+    env_production: {
       NODE_ENV: 'production',
       PORT: 5000
     },
-    instances: 'max',
-    exec_mode: 'cluster'
+    error_file: './logs/err.log',
+    out_file: './logs/out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    merge_logs: true
   }]
-}
+};
 ```
 
 Iniciar aplicación:
 
 ```bash
-pm2 start ecosystem.config.js
+# Crear directorio de logs
+mkdir -p logs
+
+# Iniciar con PM2
+pm2 start ecosystem.config.js --env production
+
+# Guardar configuración para auto-inicio
 pm2 save
-pm2 startup
+
+# Configurar inicio automático en boot
+pm2 startup systemd
+# Ejecutar el comando que PM2 muestra
+
+# Verificar estado
+pm2 status
+pm2 logs techassets-pro
 ```
 
-#### 5. Configurar Nginx (Proxy Reverso)
+### Configurar Nginx como Reverse Proxy
 
-```bash
-sudo apt install nginx
-
-# Crear configuración
-sudo nano /etc/nginx/sites-available/techassets-pro
-```
-
-Contenido del archivo de configuración:
+Crear `/etc/nginx/conf.d/techassets-pro.conf`:
 
 ```nginx
+# Configuración de Nginx para TechAssets Pro
+# Este archivo configura Nginx como reverse proxy hacia la aplicación Node.js
+
+# Limitar tamaño de uploads
+client_max_body_size 10M;
+
+# Configuración upstream (backend)
+upstream techassets_backend {
+    server 127.0.0.1:5000;
+    keepalive 64;
+}
+
+# Servidor HTTP (redirige a HTTPS)
 server {
     listen 80;
-    server_name tu-dominio.com;
+    listen [::]:80;
+    server_name tu-dominio.com www.tu-dominio.com;
+    
+    # Redirigir todo a HTTPS
+    return 301 https://$server_name$request_uri;
+}
 
+# Servidor HTTPS
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name tu-dominio.com www.tu-dominio.com;
+
+    # Certificados SSL (configurar después con Certbot)
+    ssl_certificate /etc/letsencrypt/live/tu-dominio.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tu-dominio.com/privkey.pem;
+    
+    # Configuración SSL segura
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # Headers de seguridad
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Logs
+    access_log /var/log/nginx/techassets-access.log;
+    error_log /var/log/nginx/techassets-error.log;
+
+    # Proxy hacia Node.js
     location / {
-        proxy_pass http://localhost:5000;
+        proxy_pass http://techassets_backend;
         proxy_http_version 1.1;
+        
+        # Headers esenciales
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
         proxy_cache_bypass $http_upgrade;
+    }
+
+    # Cache para assets estáticos
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
+        proxy_pass http://techassets_backend;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
     }
 }
 ```
@@ -317,174 +520,390 @@ server {
 Activar configuración:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/techassets-pro /etc/nginx/sites-enabled/
+# Verificar sintaxis
 sudo nginx -t
+
+# Recargar Nginx
 sudo systemctl reload nginx
+
+# Verificar estado
+sudo systemctl status nginx
 ```
 
-#### 6. Configurar SSL con Certbot
+### Configurar SSL con Let's Encrypt
 
 ```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d tu-dominio.com
+# Instalar Certbot
+sudo dnf install -y certbot python3-certbot-nginx
+
+# Obtener certificado (reemplazar tu-dominio.com)
+sudo certbot --nginx -d tu-dominio.com -d www.tu-dominio.com
+
+# Verificar renovación automática
+sudo certbot renew --dry-run
+
+# El certificado se renueva automáticamente
+sudo systemctl list-timers | grep certbot
 ```
 
-### Despliegue en Docker
-
-#### 1. Crear Dockerfile
-
-```dockerfile
-FROM node:18-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci --only=production
-
-COPY . .
-RUN npm run build
-
-EXPOSE 5000
-
-CMD ["npm", "start"]
-```
-
-#### 2. Crear docker-compose.yml
-
-```yaml
-version: '3.8'
-
-services:
-  app:
-    build: .
-    ports:
-      - "5000:5000"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - SESSION_SECRET=${SESSION_SECRET}
-      - REPL_ID=${REPL_ID}
-      - REPLIT_DOMAINS=${REPLIT_DOMAINS}
-    depends_on:
-      - postgres
-
-  postgres:
-    image: postgres:14
-    environment:
-      - POSTGRES_DB=techassets_pro
-      - POSTGRES_USER=techassets_user
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-volumes:
-  postgres_data:
-```
-
-#### 3. Ejecutar
+### Configurar Firewall
 
 ```bash
-docker-compose up -d
+# Permitir HTTP y HTTPS
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --reload
+
+# Verificar
+sudo firewall-cmd --list-all
 ```
-
-## 🔧 Scripts Disponibles
-
-- `npm run dev` - Ejecutar en modo desarrollo
-- `npm run build` - Compilar para producción
-- `npm start` - Ejecutar aplicación compilada
-- `npm run db:push` - Aplicar cambios de schema a la base de datos
-- `npm run db:studio` - Abrir Drizzle Studio para inspeccionar la base de datos
 
 ## 📊 Monitoreo y Mantenimiento
 
 ### Logs de Aplicación
 
-Con PM2:
 ```bash
+# Ver logs en tiempo real
 pm2 logs techassets-pro
+
+# Ver solo errores
+pm2 logs techassets-pro --err
+
+# Monitoreo de recursos
 pm2 monit
+
+# Información detallada
+pm2 describe techassets-pro
+
+# Limpiar logs antiguos
+pm2 flush
 ```
 
 ### Backup de Base de Datos
 
 ```bash
-# Backup
-pg_dump -h localhost -U techassets_user techassets_pro > backup_$(date +%Y%m%d_%H%M%S).sql
+# Crear backup completo
+pg_dump -h localhost -U techassets_user -d techassets_pro \
+  -F c -b -v -f backup_$(date +%Y%m%d_%H%M%S).dump
 
-# Restaurar
-psql -h localhost -U techassets_user techassets_pro < backup_archivo.sql
+# Backup en formato SQL plano
+pg_dump -h localhost -U techassets_user -d techassets_pro \
+  > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Restaurar desde backup
+pg_restore -h localhost -U techassets_user -d techassets_pro backup.dump
+
+# O desde SQL plano
+psql -h localhost -U techassets_user -d techassets_pro < backup.sql
+```
+
+### Script de Backup Automático
+
+Crear `/usr/local/bin/backup-techassets.sh`:
+
+```bash
+#!/bin/bash
+# Script de backup automático para TechAssets Pro
+
+BACKUP_DIR="/var/backups/techassets"
+RETENTION_DAYS=30
+DATE=$(date +%Y%m%d_%H%M%S)
+
+# Crear directorio si no existe
+mkdir -p $BACKUP_DIR
+
+# Backup de base de datos
+pg_dump -h localhost -U techassets_user -d techassets_pro \
+  -F c -b -v -f $BACKUP_DIR/db_backup_$DATE.dump
+
+# Backup de archivos de configuración
+tar -czf $BACKUP_DIR/config_backup_$DATE.tar.gz \
+  /var/www/techassets-pro/.env \
+  /var/www/techassets-pro/ecosystem.config.js \
+  /etc/nginx/conf.d/techassets-pro.conf
+
+# Eliminar backups antiguos
+find $BACKUP_DIR -name "*.dump" -mtime +$RETENTION_DAYS -delete
+find $BACKUP_DIR -name "*.tar.gz" -mtime +$RETENTION_DAYS -delete
+
+echo "Backup completado: $DATE"
+```
+
+Configurar cron:
+
+```bash
+# Hacer ejecutable
+sudo chmod +x /usr/local/bin/backup-techassets.sh
+
+# Agregar a crontab (backup diario a las 2 AM)
+sudo crontab -e
+```
+
+Agregar línea:
+```
+0 2 * * * /usr/local/bin/backup-techassets.sh >> /var/log/techassets-backup.log 2>&1
 ```
 
 ### Actualizaciones
 
 ```bash
-# Hacer backup de la base de datos
-pg_dump -h localhost -U techassets_user techassets_pro > backup_antes_actualizacion.sql
+# 1. Hacer backup de la base de datos
+pg_dump -h localhost -U techassets_user -d techassets_pro > backup_antes_actualizacion.sql
 
-# Actualizar código
+# 2. Detener aplicación
+pm2 stop techassets-pro
+
+# 3. Actualizar código
+cd /var/www/techassets-pro
 git pull origin main
+
+# 4. Instalar dependencias actualizadas
 npm ci --only=production
 
-# Aplicar migraciones
-npm run db:push
-
-# Recompilar
+# 5. Recompilar
 npm run build
 
-# Reiniciar aplicación
+# 6. Aplicar cambios de schema si hay (revisar antes)
+# psql -h localhost -U techassets_user -d techassets_pro -f schema.sql
+
+# 7. Reiniciar aplicación
 pm2 restart techassets-pro
+
+# 8. Verificar logs
+pm2 logs techassets-pro --lines 100
+```
+
+## 🔧 Scripts Disponibles
+
+```bash
+# Desarrollo
+npm run dev          # Ejecutar en modo desarrollo (frontend + backend)
+
+# Producción
+npm run build        # Compilar frontend y backend para producción
+npm start            # Ejecutar aplicación compilada
+
+# Base de datos
+npm run db:push      # Sincronizar schema (si usas Drizzle)
+npm run db:studio    # Abrir Drizzle Studio (si usas Drizzle)
+
+# Testing (si se implementa)
+npm test             # Ejecutar tests
+npm run test:e2e     # Tests end-to-end
 ```
 
 ## 🛡️ Seguridad
 
-### Recomendaciones de Seguridad
+### Checklist de Seguridad
 
-1. **Variables de Entorno**: Nunca commitear archivos `.env`
-2. **Contraseñas**: Usar contraseñas fuertes para la base de datos
-3. **SESSION_SECRET**: Generar clave secreta única y segura
-4. **HTTPS**: Siempre usar SSL en producción
-5. **Firewall**: Configurar firewall para exponer solo puertos necesarios
-6. **Actualizaciones**: Mantener dependencias actualizadas
+- [ ] **Variables de Entorno**: `.env` en `.gitignore`, nunca commitear
+- [ ] **Contraseñas Fuertes**: Base de datos con contraseñas de 20+ caracteres
+- [ ] **SESSION_SECRET**: Generar con `openssl rand -base64 32`
+- [ ] **HTTPS Obligatorio**: Certificado SSL/TLS válido en producción
+- [ ] **Firewall Configurado**: Solo puertos 22, 80, 443 abiertos
+- [ ] **PostgreSQL Local**: No exponer puerto 5432 públicamente
+- [ ] **Dependencias Actualizadas**: `npm audit fix` regularmente
+- [ ] **Headers de Seguridad**: Configurados en Nginx
+- [ ] **Backups Automáticos**: Script de backup diario funcionando
+- [ ] **Logs Monitoreados**: Revisar logs de errores semanalmente
 
-### Configuración de Firewall (Ubuntu)
+### Generar SESSION_SECRET Seguro
 
 ```bash
-sudo ufw allow ssh
-sudo ufw allow 80
-sudo ufw allow 443
-sudo ufw enable
+# Linux/macOS
+openssl rand -base64 32
+
+# Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-## 🐛 Solución de Problemas Comunes
+### Hardening de PostgreSQL
 
-### Error de Conexión a Base de Datos
+Editar `/var/lib/pgsql/17/data/pg_hba.conf`:
 
-1. Verificar variables de entorno
-2. Confirmar que PostgreSQL esté ejecutándose
-3. Verificar permisos de usuario en la base de datos
+```
+# Solo permitir conexiones locales
+local   all             all                                     peer
+host    all             all             127.0.0.1/32            scram-sha-256
+host    all             all             ::1/128                 scram-sha-256
+```
 
-### Error de Autenticación
+Reiniciar PostgreSQL:
 
-1. Verificar que SESSION_SECRET esté configurado en producción
-2. Verificar conexión a la base de datos (DATABASE_URL)
-3. Confirmar que el hash de password sea válido (bcrypt con 10 rounds)
+```bash
+sudo systemctl restart postgresql-17
+```
+
+## 🐛 Solución de Problemas
+
+### Error: "Cannot connect to database"
+
+```bash
+# 1. Verificar que PostgreSQL esté corriendo
+sudo systemctl status postgresql-17
+
+# 2. Verificar credenciales en .env
+cat .env | grep DATABASE_URL
+
+# 3. Probar conexión manual
+psql -h localhost -U techassets_user -d techassets_pro
+
+# 4. Verificar logs de PostgreSQL
+sudo tail -f /var/lib/pgsql/17/data/log/postgresql-*.log
+```
+
+### Error: "bcrypt arguments required"
+
+Este error indica que el password hash no se está mapeando correctamente. Verificar:
+
+```bash
+# 1. Verificar que getUserByEmail retorna passwordHash
+# 2. Ver logs de autenticación
+pm2 logs techassets-pro | grep "password"
+
+# 3. Verificar estructura de la tabla users
+psql -U techassets_user -d techassets_pro -c "\d users"
+```
+
+### Error: "Session store error"
+
+```bash
+# 1. Verificar que la tabla sessions existe
+psql -U techassets_user -d techassets_pro -c "\d sessions"
+
+# 2. Si no existe, crear manualmente
+psql -U techassets_user -d techassets_pro -c "
+CREATE TABLE session (
+  sid VARCHAR NOT NULL COLLATE \"default\",
+  sess JSON NOT NULL,
+  expire TIMESTAMP(6) NOT NULL,
+  CONSTRAINT session_pkey PRIMARY KEY (sid)
+);
+CREATE INDEX IDX_session_expire ON session (expire);
+"
+```
+
+### Error: "Port 5000 already in use"
+
+```bash
+# 1. Encontrar proceso usando el puerto
+sudo lsof -i :5000
+
+# 2. Matar el proceso
+kill -9 <PID>
+
+# 3. O cambiar puerto en .env
+echo "PORT=5001" >> .env
+```
 
 ### Problemas de Rendimiento
 
-1. Verificar logs con `pm2 logs`
-2. Monitorear uso de memoria con `pm2 monit`
-3. Optimizar consultas de base de datos si es necesario
+```bash
+# 1. Monitorear uso de recursos
+pm2 monit
+
+# 2. Ver queries lentas en PostgreSQL
+# Editar postgresql.conf y agregar:
+# log_min_duration_statement = 1000  # Log queries > 1s
+
+# 3. Reiniciar PostgreSQL
+sudo systemctl restart postgresql-17
+
+# 4. Ver queries lentas
+sudo tail -f /var/lib/pgsql/17/data/log/postgresql-*.log | grep duration
+```
+
+### Reset Completo (DESARROLLO ÚNICAMENTE)
+
+```bash
+# ⚠️ ESTO BORRARÁ TODOS LOS DATOS
+
+# 1. Detener aplicación
+pm2 stop techassets-pro
+
+# 2. Eliminar base de datos
+sudo -u postgres psql -c "DROP DATABASE techassets_pro;"
+sudo -u postgres psql -c "CREATE DATABASE techassets_pro;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE techassets_pro TO techassets_user;"
+
+# 3. Aplicar schema
+psql -h localhost -U techassets_user -d techassets_pro -f schema.sql
+
+# 4. Reiniciar aplicación
+pm2 restart techassets-pro
+```
+
+## 📚 Documentación de la Arquitectura
+
+### Flujo de Datos
+
+```
+┌─────────────┐      HTTP/REST      ┌─────────────┐      SQL       ┌──────────────┐
+│             │ ───── (JSON) ─────> │             │ ── Queries ──> │              │
+│   Frontend  │                     │   Backend   │                │  PostgreSQL  │
+│   (React)   │ <──── Response ──── │  (Express)  │ <── Results ── │      17      │
+│             │                     │             │                │              │
+└─────────────┘                     └─────────────┘                └──────────────┘
+     │                                     │                              │
+     │                                     │                              │
+ TanStack Query                     Storage Layer                   Tables (8)
+ State Management                   (Repository Pattern)            ENUMs (8)
+ Form Validation                    SQL Queries Nativas             Índices (25+)
+```
+
+### Patrones de Diseño Implementados
+
+1. **Repository Pattern** (`server/storage.ts`)
+   - Abstrae la lógica de acceso a datos
+   - Facilita testing y mantenimiento
+   - Centraliza las queries SQL
+
+2. **API REST** (`server/routes.ts`)
+   - Endpoints organizados por recurso
+   - Validación con Zod en cada endpoint
+   - Response consistentes (JSON)
+
+3. **Session-Based Auth** (`server/auth.ts`)
+   - Sesiones persistentes en PostgreSQL
+   - Password hashing con bcrypt
+   - Middleware de autenticación reutilizable
+
+4. **Component Composition** (Frontend)
+   - Componentes reutilizables en `/client/src/components/ui`
+   - Layouts compartidos
+   - Custom hooks para lógica compartida
+
+### Seguridad Implementada
+
+- ✅ Prepared Statements (prevención SQL injection)
+- ✅ Password hashing con bcrypt (10 rounds)
+- ✅ Sesiones seguras con httpOnly cookies
+- ✅ HTTPS en producción con certificados SSL
+- ✅ Headers de seguridad en Nginx
+- ✅ Validación de datos con Zod
+- ✅ CORS configurado correctamente
 
 ## 📝 Licencia
 
-[Especificar la licencia del proyecto]
+[Especificar licencia - MIT, Apache, Propietario, etc.]
 
 ## 🤝 Contribución
 
-[Instrucciones para contribuir al proyecto]
+Para contribuir al proyecto:
+
+1. Fork el repositorio
+2. Crear una rama feature (`git checkout -b feature/NuevaCaracteristica`)
+3. Commit cambios (`git commit -m 'Agregar nueva característica'`)
+4. Push a la rama (`git push origin feature/NuevaCaracteristica`)
+5. Abrir Pull Request
 
 ## 📞 Soporte
 
-Para soporte técnico, contactar a [información de contacto].
+- **Email**: soporte@tuempresa.com
+- **Documentación**: [Wiki del proyecto]
+- **Issues**: [GitHub Issues]
+- **Chat**: [Discord/Slack del equipo]
+
+---
+
+**Desarrollado con ❤️ para gestionar tus activos TI eficientemente**
